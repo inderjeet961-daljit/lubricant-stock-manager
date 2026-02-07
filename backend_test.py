@@ -205,6 +205,8 @@ class LubricantAPITester:
                 True,
                 f"Added raw material: {response['data']['material']['name']} ({response['data']['material']['unit']})"
             )
+        elif "already exists" in str(response["data"]):
+            self.log_result("Add Raw Material", True, "Raw material already exists (expected on repeat runs)")
         else:
             self.log_result("Add Raw Material", False, f"Failed: {response['data']}", response)
             
@@ -221,6 +223,8 @@ class LubricantAPITester:
                 True,
                 f"Added packing material: {response['data']['material']['name']}"
             )
+        elif "already exists" in str(response["data"]):
+            self.log_result("Add Packing Material", True, "Packing material already exists (expected on repeat runs)")
         else:
             self.log_result("Add Packing Material", False, f"Failed: {response['data']}", response)
             
@@ -239,6 +243,8 @@ class LubricantAPITester:
                 True,
                 f"Added finished product: {response['data']['product']['name']}"
             )
+        elif "already exists" in str(response["data"]):
+            self.log_result("Add Finished Product", True, "Finished product already exists (expected on repeat runs)")
         else:
             self.log_result("Add Finished Product", False, f"Failed: {response['data']}", response)
             

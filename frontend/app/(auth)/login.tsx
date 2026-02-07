@@ -32,8 +32,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      // Login successful - navigation will happen automatically via AuthContext
-      console.log('Login completed successfully');
+      // Give the auth context a moment to update
+      await new Promise(resolve => setTimeout(resolve, 200));
+      console.log('Login completed successfully, checking auth state...');
+      // Navigation will happen automatically via the index page
     } catch (error: any) {
       console.error('Login failed:', error);
       Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid credentials');

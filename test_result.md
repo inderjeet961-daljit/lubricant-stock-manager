@@ -226,6 +226,113 @@ backend:
         comment: "Negative stock prevention working correctly. System properly validates stock levels before operations and returns appropriate error messages when insufficient stock detected. Manufacturing correctly validates raw material availability before deduction."
 
 frontend:
+  - task: "Authentication System"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(auth)/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Login screen with database initialization, owner/manager login, and credential management. Needs mobile testing."
+
+  - task: "Owner Dashboard"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(owner)/dashboard.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Owner dashboard with search functionality, 4 stock blocks (finished goods, loose oils, raw materials, packing), pull-to-refresh. Needs comprehensive mobile testing."
+
+  - task: "Owner Actions"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(owner)/actions.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Owner actions: Take Stock in Car, Record Sales, Return to Factory. Modal-based interactions. Needs mobile testing."
+
+  - task: "Owner Add Items"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(owner)/add-items.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Add new items: Raw Materials, Packing Materials, Finished Products with linking. Needs mobile testing."
+
+  - task: "Owner Recipes"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(owner)/recipes.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Recipe management with percentage-based ingredient system and validation. Needs mobile testing."
+
+  - task: "Manager Dashboard"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(manager)/dashboard.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manager dashboard with factory overview, stock summaries, and pending returns alerts. Needs mobile testing."
+
+  - task: "Manager Actions"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(manager)/actions.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Manager actions: Add Raw Material, Manufacture Loose Oil, Pack Finished Goods, Mark Damaged Packing. Needs testing."
+
+  - task: "Manager Returns"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(manager)/returns.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Returns management with approval system (Drain & Reuse vs Write Off). Needs testing."
+
+  - task: "Mobile Responsiveness"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Mobile-first design with 390x844 viewport. Touch interactions, modals, navigation tabs. Needs comprehensive mobile testing."
 
 metadata:
   created_by: "testing_agent"

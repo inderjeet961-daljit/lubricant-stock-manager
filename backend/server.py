@@ -172,6 +172,11 @@ class AddRawMaterialStockRequest(BaseModel):
     quantity: float
 
 
+class AddPackingMaterialStockRequest(BaseModel):
+    packing_material_name: str
+    quantity: int
+
+
 class AddPackingMaterialRequest(BaseModel):
     name: str
     size_label: Optional[str] = None

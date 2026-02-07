@@ -42,9 +42,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (email: string, password: string) => {
-    const data = await apiLogin(email, password);
-    await AsyncStorage.setItem('token', data.access_token);
-    setUser(data.user);
+    try {
+      const data = await apiLogin(email, password);
+      await AsyncStorage.setItem('token', data.access_token);
+      setUser(data.user);
+      console.log('Login successful, user set:', data.user);
+    } catch (error) {
+      console.error('Login error in context:', error);
+      throw error; // Re-throw to handle in login screen
+    }
   };
 
   const logout = async () => {

@@ -636,6 +636,37 @@ async def add_raw_material_stock(data: AddRawMaterialStockRequest, current_user:
     return {"message": f"Added {data.quantity} {material['unit']} to {data.raw_material_name}", "new_stock": new_stock}
 
 
+@api_router.post("/manager/add-packing-material-stock")
+async def add_packing_material_stock(data: AddPackingMaterialStockRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can add packing material stock")
+    
+    material = await db.packing_materials.find_one({"name": data.packing_material_name})
+    if not material:
+        raise HTTPException(status_code=404, detail="Packing material not found")
+    
+    new_stock = material["stock"] + data.quantity
+    await db.packing_materials.update_one(
+        {"name": data.packing_material_name},
+        {"$set": {"stock": new_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="add_packing_material",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "packing_material_name": data.packing_material_name,
+            "quantity": data.quantity,
+            "prev_stock": material["stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Added {data.quantity} units to {data.packing_material_name}", "new_stock": new_stock}
+
+
 @api_router.post("/manager/manufacture-loose-oil")
 async def manufacture_loose_oil(data: ManufactureRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "manager":

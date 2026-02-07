@@ -165,4 +165,20 @@ export const undoTransaction = async (transaction_id: string, reason: string) =>
   return response.data;
 };
 
+// Owner admin actions
+export const editStock = async (
+  item_type: string,
+  item_name: string,
+  field: string,
+  new_value: number
+) => {
+  const response = await api.post('/owner/edit-stock', { item_type, item_name, field, new_value });
+  return response.data;
+};
+
+export const resetAllStock = async () => {
+  const response = await api.post('/owner/reset-all-stock');
+  return response.data;
+};
+
 export default api;

@@ -32,7 +32,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
+      // Login successful - navigation will happen automatically via AuthContext
+      console.log('Login completed successfully');
     } catch (error: any) {
+      console.error('Login failed:', error);
       Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid credentials');
     } finally {
       setLoading(false);

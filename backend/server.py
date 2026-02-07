@@ -1080,6 +1080,128 @@ async def get_recipes(current_user: User = Depends(get_current_user)):
     return [ManufacturingRecipe(**r) for r in recipes]
 
 
+# ==================== OWNER ADMIN ACTIONS ====================
+
+class EditStockRequest(BaseModel):
+    item_type: Literal["finished_product", "loose_oil", "raw_material", "packing_material"]
+    item_name: str
+    field: str  # "factory_stock", "car_stock", "stock_litres", "stock"
+    new_value: float
+
+
+@api_router.post("/owner/edit-stock")
+async def edit_stock(data: EditStockRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can edit stock manually")
+    
+    try:
+        if data.item_type == "finished_product":
+            product = await db.finished_products.find_one({"name": data.item_name})
+            if not product:
+                raise HTTPException(status_code=404, detail="Product not found")
+            
+            prev_value = product.get(data.field, 0)
+            await db.finished_products.update_one(
+                {"name": data.item_name},
+                {"$set": {data.field: int(data.new_value)}}
+            )
+            
+        elif data.item_type == "loose_oil":
+            oil = await db.loose_oils.find_one({"name": data.item_name})
+            if not oil:
+                raise HTTPException(status_code=404, detail="Loose oil not found")
+            
+            prev_value = oil.get("stock_litres", 0)
+            await db.loose_oils.update_one(
+                {"name": data.item_name},
+                {"$set": {"stock_litres": float(data.new_value)}}
+            )
+            
+        elif data.item_type == "raw_material":
+            material = await db.raw_materials.find_one({"name": data.item_name})
+            if not material:
+                raise HTTPException(status_code=404, detail="Raw material not found")
+            
+            prev_value = material.get("stock", 0)
+            await db.raw_materials.update_one(
+                {"name": data.item_name},
+                {"$set": {"stock": float(data.new_value)}}
+            )
+            
+        elif data.item_type == "packing_material":
+            packing = await db.packing_materials.find_one({"name": data.item_name})
+            if not packing:
+                raise HTTPException(status_code=404, detail="Packing material not found")
+            
+            prev_value = packing.get("stock", 0)
+            await db.packing_materials.update_one(
+                {"name": data.item_name},
+                {"$set": {"stock": int(data.new_value)}}
+            )
+        
+        # Log transaction
+        transaction = Transaction(
+            type="manual_stock_edit",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={
+                "item_type": data.item_type,
+                "item_name": data.item_name,
+                "field": data.field,
+                "prev_value": prev_value,
+                "new_value": data.new_value
+            }
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        return {"message": f"Stock updated successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/owner/reset-all-stock")
+async def reset_all_stock(current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can reset all stock")
+    
+    # Reset finished products
+    await db.finished_products.update_many(
+        {},
+        {"$set": {"factory_stock": 0, "car_stock": 0}}
+    )
+    
+    # Reset loose oils
+    await db.loose_oils.update_many(
+        {},
+        {"$set": {"stock_litres": 0.0}}
+    )
+    
+    # Reset raw materials
+    await db.raw_materials.update_many(
+        {},
+        {"$set": {"stock": 0.0}}
+    )
+    
+    # Reset packing materials
+    await db.packing_materials.update_many(
+        {},
+        {"$set": {"stock": 0}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="reset_all_stock",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={"action": "reset_all_stock_to_zero"},
+        can_undo=False
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": "All stock reset to zero successfully"}
+
+
 # ==================== INITIALIZE DATA ====================
 
 @api_router.post("/init-data")

@@ -393,11 +393,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Authentication System"
-  stuck_tasks:
-    - "Authentication System"
+    - "Mobile Responsiveness"
+  stuck_tasks: []
   test_all: false
-  test_priority: "stuck_first"
+  test_priority: "high_first"
 
 agent_communication:
   - agent: "testing"

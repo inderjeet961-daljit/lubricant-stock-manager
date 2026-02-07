@@ -169,6 +169,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  adminSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  dangerButton: {
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+  },
+  adminButtonContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  adminButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 2,
+  },
+  dangerText: {
+    color: '#FF3B30',
+  },
+  adminButtonSubtext: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

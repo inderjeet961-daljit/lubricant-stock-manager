@@ -32,10 +32,19 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
-      // Give the auth context a moment to update
-      await new Promise(resolve => setTimeout(resolve, 200));
-      console.log('Login completed successfully, checking auth state...');
-      // Navigation will happen automatically via the index page
+      console.log('Login completed successfully');
+      // Explicitly navigate after successful login
+      // Fetch user again to get the role
+      const token = await AsyncStorage.getItem('token');
+      if (token) {
+        const userData = await getMe();
+        console.log('User role:', userData.role);
+        if (userData.role === 'owner') {
+          router.replace('/(owner)/dashboard');
+        } else {
+          router.replace('/(manager)/dashboard');
+        }
+      }
     } catch (error: any) {
       console.error('Login failed:', error);
       Alert.alert('Login Failed', error.response?.data?.detail || 'Invalid credentials');

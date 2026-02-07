@@ -1,14 +1,18 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
 import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional, Dict, Any, Literal
+from bson import ObjectId
 import uuid
-from datetime import datetime
 
 
 ROOT_DIR = Path(__file__).parent
@@ -19,40 +23,1136 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# Security
+SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# Create a router with the /api prefix
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+# Create the main app
+app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
+
+# ==================== PYDANTIC MODELS ====================
+
+class PyObjectId(str):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if not ObjectId.is_valid(v):
+            raise ValueError("Invalid ObjectId")
+        return str(v)
+
+
+# User Models
+class UserBase(BaseModel):
+    email: str
+    name: str
+    role: Literal["owner", "manager"]  # owner = Owner/Sales, manager = Factory Manager
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class User(UserBase):
+    id: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        from_attributes = True
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: User
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+# Stock Models
+class FinishedProduct(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
+    name: str
+    pack_size: str
+    linked_loose_oil: str  # loose oil name
+    linked_packing_material: str  # packing material name
+    factory_stock: int = 0
+    car_stock: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+class LooseOil(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    stock_litres: float = 0.0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RawMaterial(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    unit: Literal["litres", "kg"]
+    stock: float = 0.0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+class PackingMaterial(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    size_label: Optional[str] = None
+    stock: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+# Recipe Model
+class RecipeIngredient(BaseModel):
+    raw_material_name: str
+    percentage: float  # percentage or litres per 100L
+
+
+class ManufacturingRecipe(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    loose_oil_name: str
+    ingredients: List[RecipeIngredient]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+# Return Model
+class PendingReturn(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_name: str
+    quantity: int
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+    status: Literal["pending", "approved", "rejected"] = "pending"
+
+
+# Transaction Model (for undo)
+class Transaction(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    type: str  # "take_stock_car", "sale_car", "sale_transport", etc.
+    user_id: str
+    user_name: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    data: Dict[str, Any]  # Store all relevant data
+    can_undo: bool = True
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+# Request Models
+class AddRawMaterialRequest(BaseModel):
+    name: str
+    unit: Literal["litres", "kg"]
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+class AddRawMaterialStockRequest(BaseModel):
+    raw_material_name: str
+    quantity: float
 
-# Include the router in the main app
+
+class AddPackingMaterialRequest(BaseModel):
+    name: str
+    size_label: Optional[str] = None
+
+
+class AddFinishedProductRequest(BaseModel):
+    name: str
+    pack_size: str
+    linked_loose_oil: str
+    linked_packing_material: str
+
+
+class SetRecipeRequest(BaseModel):
+    loose_oil_name: str
+    ingredients: List[RecipeIngredient]
+
+
+class ManufactureRequest(BaseModel):
+    loose_oil_name: str
+    quantity_litres: float
+
+
+class PackFinishedGoodsRequest(BaseModel):
+    product_name: str
+    quantity: int
+
+
+class TakeStockInCarRequest(BaseModel):
+    product_name: str
+    quantity: int
+
+
+class RecordSaleRequest(BaseModel):
+    product_name: str
+    quantity: int
+    sale_type: Literal["car", "transport", "direct_dispatch"]
+
+
+class ReturnToFactoryRequest(BaseModel):
+    product_name: str
+    quantity: int
+
+
+class ApproveReturnRequest(BaseModel):
+    return_id: str
+    action: Literal["drain_reuse", "scrap"]
+
+
+class MarkDamagedPackingRequest(BaseModel):
+    packing_name: str
+    quantity: int
+    reason: str
+
+
+class UndoTransactionRequest(BaseModel):
+    transaction_id: str
+    reason: str
+
+
+# ==================== AUTHENTICATION ====================
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+    
+    user_doc = await db.users.find_one({"id": user_id})
+    if user_doc is None:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    return User(**user_doc)
+
+
+# ==================== API ENDPOINTS ====================
+
+@api_router.post("/auth/register", response_model=User)
+async def register(user_data: UserCreate):
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": user_data.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create user
+    hashed_password = get_password_hash(user_data.password)
+    user = User(
+        id=str(uuid.uuid4()),
+        email=user_data.email,
+        name=user_data.name,
+        role=user_data.role
+    )
+    
+    user_doc = user.dict()
+    user_doc["hashed_password"] = hashed_password
+    
+    await db.users.insert_one(user_doc)
+    return user
+
+
+@api_router.post("/auth/login", response_model=Token)
+async def login(login_data: LoginRequest):
+    user_doc = await db.users.find_one({"email": login_data.email})
+    if not user_doc or not verify_password(login_data.password, user_doc["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    access_token = create_access_token(data={"sub": user_doc["id"]})
+    user = User(**user_doc)
+    
+    return Token(access_token=access_token, token_type="bearer", user=user)
+
+
+@api_router.get("/auth/me", response_model=User)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+# ==================== STOCK ENDPOINTS ====================
+
+@api_router.get("/stock/finished-products", response_model=List[FinishedProduct])
+async def get_finished_products(current_user: User = Depends(get_current_user)):
+    products = await db.finished_products.find().to_list(1000)
+    return [FinishedProduct(**p) for p in products]
+
+
+@api_router.get("/stock/loose-oils", response_model=List[LooseOil])
+async def get_loose_oils(current_user: User = Depends(get_current_user)):
+    oils = await db.loose_oils.find().to_list(1000)
+    return [LooseOil(**o) for o in oils]
+
+
+@api_router.get("/stock/raw-materials", response_model=List[RawMaterial])
+async def get_raw_materials(current_user: User = Depends(get_current_user)):
+    materials = await db.raw_materials.find().to_list(1000)
+    return [RawMaterial(**m) for m in materials]
+
+
+@api_router.get("/stock/packing-materials", response_model=List[PackingMaterial])
+async def get_packing_materials(current_user: User = Depends(get_current_user)):
+    materials = await db.packing_materials.find().to_list(1000)
+    return [PackingMaterial(**m) for m in materials]
+
+
+@api_router.get("/stock/pending-returns", response_model=List[PendingReturn])
+async def get_pending_returns(current_user: User = Depends(get_current_user)):
+    returns = await db.pending_returns.find({"status": "pending"}).to_list(1000)
+    return [PendingReturn(**r) for r in returns]
+
+
+# ==================== OWNER/SALES ACTIONS ====================
+
+@api_router.post("/owner/add-raw-material")
+async def add_raw_material(data: AddRawMaterialRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can add new raw materials")
+    
+    # Check for duplicates
+    existing = await db.raw_materials.find_one({"name": data.name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Raw material already exists")
+    
+    material = RawMaterial(
+        name=data.name,
+        unit=data.unit,
+        created_by=current_user.name
+    )
+    
+    await db.raw_materials.insert_one(material.dict())
+    return {"message": "Raw material added successfully", "material": material}
+
+
+@api_router.post("/owner/add-packing-material")
+async def add_packing_material(data: AddPackingMaterialRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can add new packing materials")
+    
+    # Check for duplicates
+    existing = await db.packing_materials.find_one({"name": data.name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Packing material already exists")
+    
+    material = PackingMaterial(
+        name=data.name,
+        size_label=data.size_label,
+        created_by=current_user.name
+    )
+    
+    await db.packing_materials.insert_one(material.dict())
+    return {"message": "Packing material added successfully", "material": material}
+
+
+@api_router.post("/owner/add-finished-product")
+async def add_finished_product(data: AddFinishedProductRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can add new finished products")
+    
+    # Check if loose oil and packing exist
+    loose_oil = await db.loose_oils.find_one({"name": data.linked_loose_oil})
+    packing = await db.packing_materials.find_one({"name": data.linked_packing_material})
+    
+    if not loose_oil:
+        raise HTTPException(status_code=400, detail=f"Loose oil '{data.linked_loose_oil}' not found")
+    if not packing:
+        raise HTTPException(status_code=400, detail=f"Packing material '{data.linked_packing_material}' not found")
+    
+    # Check for duplicates
+    existing = await db.finished_products.find_one({"name": data.name, "pack_size": data.pack_size})
+    if existing:
+        raise HTTPException(status_code=400, detail="Finished product already exists")
+    
+    product = FinishedProduct(
+        name=data.name,
+        pack_size=data.pack_size,
+        linked_loose_oil=data.linked_loose_oil,
+        linked_packing_material=data.linked_packing_material,
+        created_by=current_user.name
+    )
+    
+    await db.finished_products.insert_one(product.dict())
+    return {"message": "Finished product added successfully", "product": product}
+
+
+@api_router.post("/owner/set-recipe")
+async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can set recipes")
+    
+    # Validate total percentage
+    total = sum(ing.percentage for ing in data.ingredients)
+    if abs(total - 100.0) > 0.01:
+        raise HTTPException(status_code=400, detail=f"Recipe percentages must total 100%, got {total}%")
+    
+    # Check if loose oil exists
+    loose_oil = await db.loose_oils.find_one({"name": data.loose_oil_name})
+    if not loose_oil:
+        raise HTTPException(status_code=400, detail=f"Loose oil '{data.loose_oil_name}' not found")
+    
+    # Check if recipe exists, update or create
+    existing = await db.recipes.find_one({"loose_oil_name": data.loose_oil_name})
+    
+    if existing:
+        await db.recipes.update_one(
+            {"loose_oil_name": data.loose_oil_name},
+            {"$set": {
+                "ingredients": [ing.dict() for ing in data.ingredients],
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return {"message": "Recipe updated successfully"}
+    else:
+        recipe = ManufacturingRecipe(
+            loose_oil_name=data.loose_oil_name,
+            ingredients=data.ingredients,
+            created_by=current_user.name
+        )
+        await db.recipes.insert_one(recipe.dict())
+        return {"message": "Recipe created successfully"}
+
+
+@api_router.post("/owner/take-stock-in-car")
+async def take_stock_in_car(data: TakeStockInCarRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can take stock in car")
+    
+    # Get product
+    product = await db.finished_products.find_one({"name": data.product_name})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Check factory stock
+    if product["factory_stock"] < data.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient factory stock. Available: {product['factory_stock']}, Requested: {data.quantity}"
+        )
+    
+    # Update stocks
+    new_factory_stock = product["factory_stock"] - data.quantity
+    new_car_stock = product["car_stock"] + data.quantity
+    
+    await db.finished_products.update_one(
+        {"name": data.product_name},
+        {"$set": {
+            "factory_stock": new_factory_stock,
+            "car_stock": new_car_stock
+        }}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="take_stock_car",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "product_name": data.product_name,
+            "quantity": data.quantity,
+            "prev_factory_stock": product["factory_stock"],
+            "prev_car_stock": product["car_stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Moved {data.quantity} units to car", "factory_stock": new_factory_stock, "car_stock": new_car_stock}
+
+
+@api_router.post("/owner/record-sale")
+async def record_sale(data: RecordSaleRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can record sales")
+    
+    # Get product
+    product = await db.finished_products.find_one({"name": data.product_name})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Check stock based on sale type
+    if data.sale_type == "car":
+        if product["car_stock"] < data.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient car stock. Available: {product['car_stock']}, Requested: {data.quantity}"
+            )
+        new_car_stock = product["car_stock"] - data.quantity
+        await db.finished_products.update_one(
+            {"name": data.product_name},
+            {"$set": {"car_stock": new_car_stock}}
+        )
+    else:  # transport or direct_dispatch
+        if product["factory_stock"] < data.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient factory stock. Available: {product['factory_stock']}, Requested: {data.quantity}"
+            )
+        new_factory_stock = product["factory_stock"] - data.quantity
+        await db.finished_products.update_one(
+            {"name": data.product_name},
+            {"$set": {"factory_stock": new_factory_stock}}
+        )
+    
+    # Log transaction
+    transaction = Transaction(
+        type=f"sale_{data.sale_type}",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "product_name": data.product_name,
+            "quantity": data.quantity,
+            "sale_type": data.sale_type,
+            "prev_factory_stock": product["factory_stock"],
+            "prev_car_stock": product["car_stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Sale recorded: {data.quantity} units via {data.sale_type}"}
+
+
+@api_router.post("/owner/return-to-factory")
+async def return_to_factory(data: ReturnToFactoryRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can create returns")
+    
+    # Get product
+    product = await db.finished_products.find_one({"name": data.product_name})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Check car stock
+    if product["car_stock"] < data.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient car stock. Available: {product['car_stock']}, Requested: {data.quantity}"
+        )
+    
+    # Create pending return
+    pending_return = PendingReturn(
+        product_name=data.product_name,
+        quantity=data.quantity,
+        created_by=current_user.name
+    )
+    
+    await db.pending_returns.insert_one(pending_return.dict())
+    
+    # Decrease car stock immediately
+    new_car_stock = product["car_stock"] - data.quantity
+    await db.finished_products.update_one(
+        {"name": data.product_name},
+        {"$set": {"car_stock": new_car_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="return_to_factory",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "product_name": data.product_name,
+            "quantity": data.quantity,
+            "return_id": pending_return.id,
+            "prev_car_stock": product["car_stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Return created: {data.quantity} units pending approval", "return_id": pending_return.id}
+
+
+# ==================== FACTORY MANAGER ACTIONS ====================
+
+@api_router.post("/manager/add-raw-material-stock")
+async def add_raw_material_stock(data: AddRawMaterialStockRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can add raw material stock")
+    
+    material = await db.raw_materials.find_one({"name": data.raw_material_name})
+    if not material:
+        raise HTTPException(status_code=404, detail="Raw material not found")
+    
+    new_stock = material["stock"] + data.quantity
+    await db.raw_materials.update_one(
+        {"name": data.raw_material_name},
+        {"$set": {"stock": new_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="add_raw_material",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "raw_material_name": data.raw_material_name,
+            "quantity": data.quantity,
+            "prev_stock": material["stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Added {data.quantity} {material['unit']} to {data.raw_material_name}", "new_stock": new_stock}
+
+
+@api_router.post("/manager/manufacture-loose-oil")
+async def manufacture_loose_oil(data: ManufactureRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can manufacture loose oil")
+    
+    # Get recipe
+    recipe = await db.recipes.find_one({"loose_oil_name": data.loose_oil_name})
+    if not recipe:
+        raise HTTPException(status_code=400, detail=f"No recipe found for '{data.loose_oil_name}'. Please set recipe first.")
+    
+    # Calculate required raw materials
+    required_materials = {}
+    for ingredient in recipe["ingredients"]:
+        required_quantity = (ingredient["percentage"] / 100.0) * data.quantity_litres
+        required_materials[ingredient["raw_material_name"]] = required_quantity
+    
+    # Check if sufficient raw materials available
+    insufficient = []
+    for material_name, required_qty in required_materials.items():
+        material = await db.raw_materials.find_one({"name": material_name})
+        if not material:
+            raise HTTPException(status_code=400, detail=f"Raw material '{material_name}' not found")
+        if material["stock"] < required_qty:
+            insufficient.append(f"{material_name}: need {required_qty:.2f}, have {material['stock']:.2f}")
+    
+    if insufficient:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient raw materials: {', '.join(insufficient)}"
+        )
+    
+    # Deduct raw materials
+    deductions = {}
+    for material_name, required_qty in required_materials.items():
+        material = await db.raw_materials.find_one({"name": material_name})
+        new_stock = material["stock"] - required_qty
+        await db.raw_materials.update_one(
+            {"name": material_name},
+            {"$set": {"stock": new_stock}}
+        )
+        deductions[material_name] = {"used": required_qty, "prev_stock": material["stock"], "new_stock": new_stock}
+    
+    # Add to loose oil stock
+    loose_oil = await db.loose_oils.find_one({"name": data.loose_oil_name})
+    if not loose_oil:
+        raise HTTPException(status_code=404, detail="Loose oil not found")
+    
+    new_oil_stock = loose_oil["stock_litres"] + data.quantity_litres
+    await db.loose_oils.update_one(
+        {"name": data.loose_oil_name},
+        {"$set": {"stock_litres": new_oil_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="manufacture_loose_oil",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "loose_oil_name": data.loose_oil_name,
+            "quantity_litres": data.quantity_litres,
+            "deductions": deductions,
+            "prev_oil_stock": loose_oil["stock_litres"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {
+        "message": f"Manufactured {data.quantity_litres}L of {data.loose_oil_name}",
+        "new_stock": new_oil_stock,
+        "raw_materials_used": deductions
+    }
+
+
+@api_router.post("/manager/pack-finished-goods")
+async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can pack finished goods")
+    
+    # Get product
+    product = await db.finished_products.find_one({"name": data.product_name})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Get loose oil
+    loose_oil = await db.loose_oils.find_one({"name": product["linked_loose_oil"]})
+    if not loose_oil:
+        raise HTTPException(status_code=400, detail=f"Loose oil '{product['linked_loose_oil']}' not found")
+    
+    # Get packing material
+    packing = await db.packing_materials.find_one({"name": product["linked_packing_material"]})
+    if not packing:
+        raise HTTPException(status_code=400, detail=f"Packing material '{product['linked_packing_material']}' not found")
+    
+    # Calculate required loose oil (assuming pack_size is like "1L", "3.5L", etc.)
+    try:
+        pack_size_litres = float(product["pack_size"].replace("L", ""))
+    except:
+        raise HTTPException(status_code=400, detail=f"Invalid pack size format: {product['pack_size']}")
+    
+    required_oil = pack_size_litres * data.quantity
+    
+    # Check stocks
+    if loose_oil["stock_litres"] < required_oil:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient loose oil. Need {required_oil}L, have {loose_oil['stock_litres']}L"
+        )
+    
+    if packing["stock"] < data.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient packing bottles. Need {data.quantity}, have {packing['stock']}"
+        )
+    
+    # Deduct loose oil and packing
+    new_oil_stock = loose_oil["stock_litres"] - required_oil
+    new_packing_stock = packing["stock"] - data.quantity
+    
+    await db.loose_oils.update_one(
+        {"name": product["linked_loose_oil"]},
+        {"$set": {"stock_litres": new_oil_stock}}
+    )
+    
+    await db.packing_materials.update_one(
+        {"name": product["linked_packing_material"]},
+        {"$set": {"stock": new_packing_stock}}
+    )
+    
+    # Add to finished goods factory stock
+    new_factory_stock = product["factory_stock"] + data.quantity
+    await db.finished_products.update_one(
+        {"name": data.product_name},
+        {"$set": {"factory_stock": new_factory_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="pack_finished_goods",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "product_name": data.product_name,
+            "quantity": data.quantity,
+            "oil_used": required_oil,
+            "prev_factory_stock": product["factory_stock"],
+            "prev_oil_stock": loose_oil["stock_litres"],
+            "prev_packing_stock": packing["stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {
+        "message": f"Packed {data.quantity} units of {data.product_name}",
+        "factory_stock": new_factory_stock
+    }
+
+
+@api_router.post("/manager/approve-return")
+async def approve_return(data: ApproveReturnRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can approve returns")
+    
+    # Get return
+    return_doc = await db.pending_returns.find_one({"id": data.return_id, "status": "pending"})
+    if not return_doc:
+        raise HTTPException(status_code=404, detail="Pending return not found")
+    
+    # Get product
+    product = await db.finished_products.find_one({"name": return_doc["product_name"]})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Calculate pack size
+    try:
+        pack_size_litres = float(product["pack_size"].replace("L", ""))
+    except:
+        raise HTTPException(status_code=400, detail=f"Invalid pack size format: {product['pack_size']}")
+    
+    oil_to_add = pack_size_litres * return_doc["quantity"]
+    
+    if data.action == "drain_reuse":
+        # Add oil back to loose stock
+        loose_oil = await db.loose_oils.find_one({"name": product["linked_loose_oil"]})
+        if loose_oil:
+            new_oil_stock = loose_oil["stock_litres"] + oil_to_add
+            await db.loose_oils.update_one(
+                {"name": product["linked_loose_oil"]},
+                {"$set": {"stock_litres": new_oil_stock}}
+            )
+        
+        # Deduct packing bottles
+        packing = await db.packing_materials.find_one({"name": product["linked_packing_material"]})
+        if packing and packing["stock"] >= return_doc["quantity"]:
+            new_packing_stock = packing["stock"] - return_doc["quantity"]
+            await db.packing_materials.update_one(
+                {"name": product["linked_packing_material"]},
+                {"$set": {"stock": new_packing_stock}}
+            )
+    
+    elif data.action == "scrap":
+        # Just deduct packing bottles (oil is lost)
+        packing = await db.packing_materials.find_one({"name": product["linked_packing_material"]})
+        if packing and packing["stock"] >= return_doc["quantity"]:
+            new_packing_stock = packing["stock"] - return_doc["quantity"]
+            await db.packing_materials.update_one(
+                {"name": product["linked_packing_material"]},
+                {"$set": {"stock": new_packing_stock}}
+            )
+    
+    # Mark return as approved
+    await db.pending_returns.update_one(
+        {"id": data.return_id},
+        {"$set": {"status": "approved"}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="approve_return",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "return_id": data.return_id,
+            "product_name": return_doc["product_name"],
+            "quantity": return_doc["quantity"],
+            "action": data.action,
+            "oil_added": oil_to_add if data.action == "drain_reuse" else 0
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Return approved with action: {data.action}"}
+
+
+@api_router.post("/manager/mark-damaged-packing")
+async def mark_damaged_packing(data: MarkDamagedPackingRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can mark damaged packing")
+    
+    # Get packing material
+    packing = await db.packing_materials.find_one({"name": data.packing_name})
+    if not packing:
+        raise HTTPException(status_code=404, detail="Packing material not found")
+    
+    if packing["stock"] < data.quantity:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient stock. Available: {packing['stock']}, Requested: {data.quantity}"
+        )
+    
+    # Reduce stock
+    new_stock = packing["stock"] - data.quantity
+    await db.packing_materials.update_one(
+        {"name": data.packing_name},
+        {"$set": {"stock": new_stock}}
+    )
+    
+    # Log transaction
+    transaction = Transaction(
+        type="damaged_packing",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "packing_name": data.packing_name,
+            "quantity": data.quantity,
+            "reason": data.reason,
+            "prev_stock": packing["stock"]
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Marked {data.quantity} units as damaged", "new_stock": new_stock}
+
+
+# ==================== UNDO FUNCTIONALITY ====================
+
+@api_router.get("/transactions/recent", response_model=List[Transaction])
+async def get_recent_transactions(current_user: User = Depends(get_current_user)):
+    # Get transactions from last 24 hours
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    transactions = await db.transactions.find({
+        "timestamp": {"$gte": twenty_four_hours_ago},
+        "can_undo": True
+    }).sort("timestamp", -1).to_list(100)
+    
+    return [Transaction(**t) for t in transactions]
+
+
+@api_router.post("/transactions/undo")
+async def undo_transaction(data: UndoTransactionRequest, current_user: User = Depends(get_current_user)):
+    # Get transaction
+    transaction = await db.transactions.find_one({"id": data.transaction_id, "can_undo": True})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found or cannot be undone")
+    
+    # Check if within 24 hours
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    if transaction["timestamp"] < twenty_four_hours_ago:
+        raise HTTPException(status_code=400, detail="Transaction is older than 24 hours and cannot be undone")
+    
+    trans_type = transaction["type"]
+    trans_data = transaction["data"]
+    
+    # Undo based on transaction type
+    if trans_type == "take_stock_car":
+        await db.finished_products.update_one(
+            {"name": trans_data["product_name"]},
+            {"$set": {
+                "factory_stock": trans_data["prev_factory_stock"],
+                "car_stock": trans_data["prev_car_stock"]
+            }}
+        )
+    
+    elif trans_type in ["sale_car", "sale_transport", "sale_direct_dispatch"]:
+        await db.finished_products.update_one(
+            {"name": trans_data["product_name"]},
+            {"$set": {
+                "factory_stock": trans_data["prev_factory_stock"],
+                "car_stock": trans_data["prev_car_stock"]
+            }}
+        )
+    
+    elif trans_type == "add_raw_material":
+        await db.raw_materials.update_one(
+            {"name": trans_data["raw_material_name"]},
+            {"$set": {"stock": trans_data["prev_stock"]}}
+        )
+    
+    elif trans_type == "pack_finished_goods":
+        product = await db.finished_products.find_one({"name": trans_data["product_name"]})
+        if product:
+            await db.finished_products.update_one(
+                {"name": trans_data["product_name"]},
+                {"$set": {"factory_stock": trans_data["prev_factory_stock"]}}
+            )
+            await db.loose_oils.update_one(
+                {"name": product["linked_loose_oil"]},
+                {"$set": {"stock_litres": trans_data["prev_oil_stock"]}}
+            )
+            await db.packing_materials.update_one(
+                {"name": product["linked_packing_material"]},
+                {"$set": {"stock": trans_data["prev_packing_stock"]}}
+            )
+    
+    # Mark transaction as undone
+    await db.transactions.update_one(
+        {"id": data.transaction_id},
+        {"$set": {"can_undo": False}}
+    )
+    
+    # Log undo action
+    undo_transaction = Transaction(
+        type="undo",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "undone_transaction_id": data.transaction_id,
+            "undone_type": trans_type,
+            "reason": data.reason
+        },
+        can_undo=False
+    )
+    await db.transactions.insert_one(undo_transaction.dict())
+    
+    return {"message": f"Transaction undone successfully. Reason: {data.reason}"}
+
+
+# ==================== SEARCH ====================
+
+@api_router.get("/search")
+async def search_stock(query: str, current_user: User = Depends(get_current_user)):
+    query_lower = query.lower()
+    
+    results = {
+        "finished_goods": [],
+        "loose_oils": [],
+        "raw_materials": [],
+        "packing_materials": []
+    }
+    
+    # Search finished products
+    products = await db.finished_products.find({
+        "name": {"$regex": query, "$options": "i"}
+    }).to_list(50)
+    results["finished_goods"] = [FinishedProduct(**p) for p in products]
+    
+    # Search loose oils
+    oils = await db.loose_oils.find({
+        "name": {"$regex": query, "$options": "i"}
+    }).to_list(50)
+    results["loose_oils"] = [LooseOil(**o) for o in oils]
+    
+    # Search raw materials
+    raw_mats = await db.raw_materials.find({
+        "name": {"$regex": query, "$options": "i"}
+    }).to_list(50)
+    results["raw_materials"] = [RawMaterial(**m) for m in raw_mats]
+    
+    # Search packing materials
+    packing_mats = await db.packing_materials.find({
+        "name": {"$regex": query, "$options": "i"}
+    }).to_list(50)
+    results["packing_materials"] = [PackingMaterial(**m) for m in packing_mats]
+    
+    return results
+
+
+@api_router.get("/recipes", response_model=List[ManufacturingRecipe])
+async def get_recipes(current_user: User = Depends(get_current_user)):
+    recipes = await db.recipes.find().to_list(1000)
+    return [ManufacturingRecipe(**r) for r in recipes]
+
+
+# ==================== INITIALIZE DATA ====================
+
+@api_router.post("/init-data")
+async def initialize_data():
+    """Initialize database with pre-populated data (call once)"""
+    
+    # Check if already initialized
+    existing_oils = await db.loose_oils.count_documents({})
+    if existing_oils > 0:
+        return {"message": "Data already initialized"}
+    
+    # Create default users
+    owner_user = {
+        "id": str(uuid.uuid4()),
+        "email": "owner@lubricant.com",
+        "name": "Owner",
+        "role": "owner",
+        "hashed_password": get_password_hash("owner123"),
+        "created_at": datetime.utcnow()
+    }
+    
+    manager_user = {
+        "id": str(uuid.uuid4()),
+        "email": "manager@lubricant.com",
+        "name": "Factory Manager",
+        "role": "manager",
+        "hashed_password": get_password_hash("manager123"),
+        "created_at": datetime.utcnow()
+    }
+    
+    await db.users.insert_many([owner_user, manager_user])
+    
+    # Loose Oils
+    loose_oils = [
+        "15W40", "20W50", "Thriller", "Thrive", "Super Pro", "Power 4T",
+        "5W30 Ultra", "5W30 Cruise", "2T", "Hydraulic Samrat", "Hydraulic Delvex",
+        "Gear Oil Supreme", "Gear Oil GL3", "Gear Oil GL4", "8W90", "Gear Oil 140",
+        "UTTO", "TQ", "10W30", "PSO"
+    ]
+    
+    loose_oil_docs = [LooseOil(name=name).dict() for name in loose_oils]
+    await db.loose_oils.insert_many(loose_oil_docs)
+    
+    # Raw Materials
+    raw_materials = [
+        RawMaterial(name="Seiko", unit="litres", created_by="System").dict(),
+        RawMaterial(name="150", unit="litres", created_by="System").dict(),
+        RawMaterial(name="Other", unit="litres", created_by="System").dict(),
+        RawMaterial(name="4T", unit="litres", created_by="System").dict(),
+        RawMaterial(name="Gear Oil", unit="litres", created_by="System").dict(),
+        RawMaterial(name="Hydraulic", unit="litres", created_by="System").dict(),
+        RawMaterial(name="Synth", unit="litres", created_by="System").dict(),
+        RawMaterial(name="CH4", unit="litres", created_by="System").dict(),
+        RawMaterial(name="VI", unit="kg", created_by="System").dict(),
+        RawMaterial(name="PPD", unit="kg", created_by="System").dict(),
+        RawMaterial(name="Dye", unit="kg", created_by="System").dict(),
+    ]
+    await db.raw_materials.insert_many(raw_materials)
+    
+    # Packing Materials
+    packing_materials = [
+        PackingMaterial(name="Thriller Pack 1L", size_label="1L", created_by="System").dict(),
+        PackingMaterial(name="Thrive Pack 1L", size_label="1L", created_by="System").dict(),
+        PackingMaterial(name="Power Grey 1L", size_label="1L", created_by="System").dict(),
+        PackingMaterial(name="Power Grey 5L", size_label="5L", created_by="System").dict(),
+        PackingMaterial(name="Autocraft 3.5L", size_label="3.5L", created_by="System").dict(),
+        PackingMaterial(name="Champion 3.5L Yellow", size_label="3.5L", created_by="System").dict(),
+        PackingMaterial(name="Champion 3.5L Red", size_label="3.5L", created_by="System").dict(),
+        PackingMaterial(name="Power 3.5L Red", size_label="3.5L", created_by="System").dict(),
+        PackingMaterial(name="Power 5L Grey", size_label="5L", created_by="System").dict(),
+    ]
+    await db.packing_materials.insert_many(packing_materials)
+    
+    # Sample Finished Products
+    finished_products = [
+        FinishedProduct(
+            name="Thriller",
+            pack_size="1L",
+            linked_loose_oil="Thriller",
+            linked_packing_material="Thriller Pack 1L",
+            created_by="System"
+        ).dict(),
+        FinishedProduct(
+            name="Thrive",
+            pack_size="1L",
+            linked_loose_oil="Thrive",
+            linked_packing_material="Thrive Pack 1L",
+            created_by="System"
+        ).dict(),
+        FinishedProduct(
+            name="Power 4T Grey",
+            pack_size="1L",
+            linked_loose_oil="Power 4T",
+            linked_packing_material="Power Grey 1L",
+            created_by="System"
+        ).dict(),
+    ]
+    await db.finished_products.insert_many(finished_products)
+    
+    return {
+        "message": "Database initialized successfully",
+        "default_credentials": {
+            "owner": {"email": "owner@lubricant.com", "password": "owner123"},
+            "manager": {"email": "manager@lubricant.com", "password": "manager123"}
+        }
+    }
+
+
+# Include router
 app.include_router(api_router)
 
 app.add_middleware(
@@ -63,12 +1163,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

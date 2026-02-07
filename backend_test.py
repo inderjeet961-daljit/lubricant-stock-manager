@@ -362,6 +362,10 @@ class LubricantAPITester:
             stock_data = {"raw_material_name": "Seiko", "quantity": 50.0}
             self.make_request("POST", "/manager/add-raw-material-stock", stock_data, self.manager_token)
             
+            # Add packing material stock (this was missing!)
+            # Since manager can't add packing stock directly, we need to check if we can add it through add-packing-material-stock endpoint
+            # Let's first check if there's such endpoint, if not we'll work around it by using owner to add more packing
+            
             # Manufacture Thriller loose oil (need recipe first)
             recipe_data = {
                 "loose_oil_name": "Thriller", 

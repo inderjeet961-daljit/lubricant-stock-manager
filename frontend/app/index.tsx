@@ -8,8 +8,10 @@ export default function Index() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log('Index useEffect - loading:', loading, 'user:', user);
     if (!loading) {
       if (user) {
+        console.log('User exists, navigating to dashboard for role:', user.role);
         // Redirect based on role
         if (user.role === 'owner') {
           router.replace('/(owner)/dashboard');
@@ -17,10 +19,11 @@ export default function Index() {
           router.replace('/(manager)/dashboard');
         }
       } else {
+        console.log('No user, navigating to login');
         router.replace('/(auth)/login');
       }
     }
-  }, [user, loading]);
+  }, [user, loading, router]);
 
   return (
     <View style={styles.container}>

@@ -341,7 +341,16 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Authentication System"
+    - "Owner Dashboard"
+    - "Owner Actions"
+    - "Owner Add Items"
+    - "Owner Recipes"
+    - "Manager Dashboard"
+    - "Manager Actions"
+    - "Manager Returns"
+    - "Mobile Responsiveness"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"

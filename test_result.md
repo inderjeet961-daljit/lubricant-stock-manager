@@ -358,3 +358,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Comprehensive backend API testing completed successfully. All 35 test cases passed (100% success rate). Backend is fully functional with proper authentication, RBAC, stock management, manufacturing workflows, and transaction logging. Added missing /api/manager/add-packing-material-stock endpoint to enable complete workflow testing. System ready for production use."
+  - agent: "testing"
+    message: "Starting comprehensive frontend mobile testing (390x844 viewport) following detailed test plan. Testing authentication flow, database initialization, owner/manager dashboards, all actions, role-based access, search functionality, and mobile responsiveness. Backend is confirmed working, focusing on UI integration and mobile UX."

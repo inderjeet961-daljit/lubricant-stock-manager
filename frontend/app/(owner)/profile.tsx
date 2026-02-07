@@ -1,14 +1,16 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import { resetAllStock } from '../../services/api';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -28,6 +30,32 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleResetStock = () => {
+    Alert.alert(
+      '⚠️ Reset All Stock',
+      'This will set ALL stock quantities to ZERO for:\n\n• Finished Goods (Factory & Car)\n• Loose Oils\n• Raw Materials\n• Packing Materials\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, Reset Everything',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await resetAllStock();
+              Alert.alert('Success', 'All stock has been reset to zero');
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.detail || 'Failed to reset stock');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditStock = () => {
+    router.push('/(owner)/edit-stock' as any);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
@@ -36,7 +64,7 @@ export default function ProfileScreen() {
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
-      <View style={styles.content}>
+      <ScrollView style={styles.content}>
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             <Ionicons name="person" size={48} color="#007AFF" />
@@ -50,11 +78,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Admin Actions */}
+        <View style={styles.adminSection}>
+          <Text style={styles.sectionTitle}>Admin Actions</Text>
+          
+          <TouchableOpacity style={styles.adminButton} onPress={handleEditStock}>
+            <Ionicons name="create-outline" size={24} color="#007AFF" />
+            <View style={styles.adminButtonContent}>
+              <Text style={styles.adminButtonText}>Edit Stock Manually</Text>
+              <Text style={styles.adminButtonSubtext}>Adjust any stock quantity</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.adminButton, styles.dangerButton]} onPress={handleResetStock}>
+            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <View style={styles.adminButtonContent}>
+              <Text style={[styles.adminButtonText, styles.dangerText]}>Reset All Stock to Zero</Text>
+              <Text style={styles.adminButtonSubtext}>⚠️ This cannot be undone</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

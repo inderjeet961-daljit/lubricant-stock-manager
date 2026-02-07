@@ -370,17 +370,10 @@ metadata:
 test_plan:
   current_focus:
     - "Authentication System"
-    - "Owner Dashboard"
-    - "Owner Actions"
-    - "Owner Add Items"
-    - "Owner Recipes"
-    - "Manager Dashboard"
-    - "Manager Actions"
-    - "Manager Returns"
-    - "Mobile Responsiveness"
-  stuck_tasks: []
-  test_all: true
-  test_priority: "high_first"
+  stuck_tasks:
+    - "Authentication System"
+  test_all: false
+  test_priority: "stuck_first"
 
 agent_communication:
   - agent: "testing"

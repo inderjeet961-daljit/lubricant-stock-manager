@@ -1,21 +1,25 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Lubricant Stock Manager",
+    "slug": "lubricant-stock-manager",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "lubricant-stock",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lubricant.stockmanager"
     },
     "android": {
+      "package": "com.lubricant.stockmanager",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#007AFF"
       },
+      "permissions": [],
       "edgeToEdgeEnabled": true
     },
     "web": {

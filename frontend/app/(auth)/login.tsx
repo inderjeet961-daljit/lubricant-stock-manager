@@ -113,12 +113,6 @@ export default function LoginScreen() {
               <TouchableOpacity style={styles.secondaryButton} onPress={handleInitialize}>
                 <Text style={styles.secondaryButtonText}>Initialize Database</Text>
               </TouchableOpacity>
-
-              <View style={styles.infoBox}>
-                <Text style={styles.infoText}>Default Credentials:</Text>
-                <Text style={styles.infoDetail}>Owner: owner@lubricant.com / owner123</Text>
-                <Text style={styles.infoDetail}>Manager: manager@lubricant.com / manager123</Text>
-              </View>
             </View>
           </View>
         </ScrollView>

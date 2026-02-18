@@ -10,27 +10,22 @@ export default function ManagerProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            // Force reload to clear all state
-            if (typeof window !== 'undefined') {
-              window.location.href = '/';
-            } else {
-              router.replace('/(auth)/login');
-            }
-          },
-        },
-      ]
-    );
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Force complete page reload to clear all state
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      } else {
+        router.replace('/(auth)/login');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force reload anyway
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    }
   };
 
   return (

@@ -21,7 +21,12 @@ export default function ManagerProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/(auth)/login');
+            // Force reload to clear all state
+            if (typeof window !== 'undefined') {
+              window.location.href = '/';
+            } else {
+              router.replace('/(auth)/login');
+            }
           },
         },
       ]

@@ -59,7 +59,7 @@ export default function LoginScreen() {
       const result = await initializeData();
       Alert.alert(
         'Success',
-        'Database initialized!\n\nOwner: owner@lubricant.com / owner123\nManager: manager@lubricant.com / manager123'
+        'Database initialized successfully! You can now login with your credentials.'
       );
     } catch (error: any) {
       if (error.response?.data?.message?.includes('already initialized')) {

@@ -367,6 +367,116 @@ async def add_raw_material(data: AddRawMaterialRequest, current_user: User = Dep
     return {"message": "Raw material added successfully", "material": material}
 
 
+# Edit Raw Material Request
+class EditRawMaterialRequest(BaseModel):
+    name: str
+    new_name: Optional[str] = None
+    new_unit: Optional[Literal["litres", "kg"]] = None
+
+
+@api_router.put("/owner/edit-raw-material")
+async def edit_raw_material(data: EditRawMaterialRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can edit raw materials")
+    
+    try:
+        # Find the raw material
+        material = await db.raw_materials.find_one({"name": data.name})
+        if not material:
+            raise HTTPException(status_code=404, detail=f"Raw material '{data.name}' not found")
+        
+        update_data = {}
+        if data.new_name and data.new_name != data.name:
+            # Check for duplicate name
+            existing = await db.raw_materials.find_one({"name": data.new_name})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Raw material '{data.new_name}' already exists")
+            update_data["name"] = data.new_name
+            
+            # Update recipes that reference this raw material
+            await db.recipes.update_many(
+                {"ingredients.raw_material_name": data.name},
+                {"$set": {"ingredients.$[elem].raw_material_name": data.new_name}},
+                array_filters=[{"elem.raw_material_name": data.name}]
+            )
+        
+        if data.new_unit:
+            update_data["unit"] = data.new_unit
+        
+        if update_data:
+            await db.raw_materials.update_one(
+                {"name": data.name},
+                {"$set": update_data}
+            )
+            
+            # Log transaction
+            transaction = Transaction(
+                type="edit_raw_material",
+                user_id=current_user.id,
+                user_name=current_user.name,
+                data={
+                    "original_name": data.name,
+                    "updates": update_data
+                }
+            )
+            await db.transactions.insert_one(transaction.dict())
+            
+            logger.info(f"Raw material '{data.name}' updated by {current_user.name}")
+            return {"message": f"Raw material updated successfully"}
+        
+        return {"message": "No changes to update"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error editing raw material: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to edit raw material: {str(e)}")
+
+
+@api_router.delete("/owner/delete-raw-material/{name}")
+async def delete_raw_material(name: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can delete raw materials")
+    
+    try:
+        # Find the raw material
+        material = await db.raw_materials.find_one({"name": name})
+        if not material:
+            raise HTTPException(status_code=404, detail=f"Raw material '{name}' not found")
+        
+        # Check if used in any recipes
+        recipe_using = await db.recipes.find_one({"ingredients.raw_material_name": name})
+        if recipe_using:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete '{name}' - it's used in recipe for '{recipe_using['loose_oil_name']}'. Please remove it from recipes first."
+            )
+        
+        # Delete the raw material
+        await db.raw_materials.delete_one({"name": name})
+        
+        # Log transaction
+        transaction = Transaction(
+            type="delete_raw_material",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={
+                "deleted_name": name,
+                "deleted_unit": material.get("unit"),
+                "deleted_stock": material.get("stock")
+            },
+            can_undo=False
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Raw material '{name}' deleted by {current_user.name}")
+        return {"message": f"Raw material '{name}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting raw material: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete raw material: {str(e)}")
+
+
 @api_router.post("/owner/add-packing-material")
 async def add_packing_material(data: AddPackingMaterialRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "owner":

@@ -718,30 +718,47 @@ async def add_finished_product(data: AddFinishedProductRequest, current_user: Us
     if current_user.role != "owner":
         raise HTTPException(status_code=403, detail="Only owner can add new finished products")
     
-    # Check if loose oil and packing exist
-    loose_oil = await db.loose_oils.find_one({"name": data.linked_loose_oil})
-    packing = await db.packing_materials.find_one({"name": data.linked_packing_material})
-    
-    if not loose_oil:
-        raise HTTPException(status_code=400, detail=f"Loose oil '{data.linked_loose_oil}' not found")
-    if not packing:
-        raise HTTPException(status_code=400, detail=f"Packing material '{data.linked_packing_material}' not found")
-    
-    # Check for duplicates
-    existing = await db.finished_products.find_one({"name": data.name, "pack_size": data.pack_size})
-    if existing:
-        raise HTTPException(status_code=400, detail="Finished product already exists")
-    
-    product = FinishedProduct(
-        name=data.name,
-        pack_size=data.pack_size,
-        linked_loose_oil=data.linked_loose_oil,
-        linked_packing_material=data.linked_packing_material,
-        created_by=current_user.name
-    )
-    
-    await db.finished_products.insert_one(product.dict())
-    return {"message": "Finished product added successfully", "product": product}
+    try:
+        # Validate input
+        if not data.name or not data.name.strip():
+            raise HTTPException(status_code=400, detail="Product name is required")
+        if not data.pack_size or not data.pack_size.strip():
+            raise HTTPException(status_code=400, detail="Pack size is required (e.g., 1L, 3.5L)")
+        if not data.linked_loose_oil:
+            raise HTTPException(status_code=400, detail="Please select a loose oil")
+        if not data.linked_packing_material:
+            raise HTTPException(status_code=400, detail="Please select a packing material")
+        
+        # Check if loose oil and packing exist
+        loose_oil = await db.loose_oils.find_one({"name": data.linked_loose_oil})
+        packing = await db.packing_materials.find_one({"name": data.linked_packing_material})
+        
+        if not loose_oil:
+            raise HTTPException(status_code=400, detail=f"Loose oil '{data.linked_loose_oil}' not found. Please add it first.")
+        if not packing:
+            raise HTTPException(status_code=400, detail=f"Packing material '{data.linked_packing_material}' not found. Please add it first.")
+        
+        # Check for duplicates
+        existing = await db.finished_products.find_one({"name": data.name, "pack_size": data.pack_size})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Product '{data.name}' with pack size '{data.pack_size}' already exists")
+        
+        product = FinishedProduct(
+            name=data.name.strip(),
+            pack_size=data.pack_size.strip(),
+            linked_loose_oil=data.linked_loose_oil,
+            linked_packing_material=data.linked_packing_material,
+            created_by=current_user.name
+        )
+        
+        await db.finished_products.insert_one(product.dict())
+        logger.info(f"Finished product '{data.name}' ({data.pack_size}) added by {current_user.name}")
+        return {"message": f"Finished product '{data.name}' ({data.pack_size}) added successfully", "product": product}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding finished product: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to add finished product: {str(e)}")
 
 
 @api_router.post("/owner/set-recipe")

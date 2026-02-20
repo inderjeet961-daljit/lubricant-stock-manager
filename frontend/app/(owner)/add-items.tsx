@@ -94,6 +94,11 @@ export default function AddItemsScreen() {
     setSizeLabel('');
     setPackSize('');
     setUnit('litres');
+    // Ensure linked items are set to first available item when opening modal
+    if (type === 'finished') {
+      if (looseOils.length > 0) setLinkedLooseOil(looseOils[0].name);
+      if (packingMaterials.length > 0) setLinkedPackingMaterial(packingMaterials[0].name);
+    }
     setModalVisible(true);
   };
 

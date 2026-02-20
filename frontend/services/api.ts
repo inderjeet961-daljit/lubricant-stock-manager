@@ -76,6 +76,16 @@ export const addRawMaterial = async (name: string, unit: string) => {
   return response.data;
 };
 
+export const editRawMaterial = async (name: string, new_name?: string, new_unit?: string) => {
+  const response = await api.put('/owner/edit-raw-material', { name, new_name, new_unit });
+  return response.data;
+};
+
+export const deleteRawMaterial = async (name: string) => {
+  const response = await api.delete(`/owner/delete-raw-material/${encodeURIComponent(name)}`);
+  return response.data;
+};
+
 export const addPackingMaterial = async (name: string, size_label: string) => {
   const response = await api.post('/owner/add-packing-material', { name, size_label });
   return response.data;

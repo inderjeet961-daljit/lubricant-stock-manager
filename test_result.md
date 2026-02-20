@@ -425,3 +425,27 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "COMPREHENSIVE TESTING COMPLETED: All new endpoints working perfectly. PUT /owner/edit-raw-material: Successfully edits name/unit individually or together, updates recipes when names change, proper 404 for non-existent materials, correct 403 RBAC enforcement. DELETE /owner/delete-raw-material/{name}: Successfully deletes unused materials, correctly prevents deletion of materials used in recipes with proper error messages, 404 for non-existent materials, correct 403 RBAC enforcement. POST /owner/set-recipe: Enhanced with robust validation - accepts valid 100% recipes, rejects invalid percentages with clear messages, validates loose oil existence, validates raw material existence. All RBAC working correctly - manager denied access (403) to all owner endpoints, unauthenticated requests properly rejected (401/422). Edge cases handled: duplicate name prevention, negative percentages rejected, empty edits handled gracefully. 20/20 test cases passed (100% success rate)."
+
+  - task: "NEW Packing Material Edit/Delete Endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE TESTING COMPLETED: All NEW packing material endpoints working perfectly. PUT /api/owner/edit-packing-material: Successfully edits name and size_label individually or together, updates finished products when name changes, proper 404 for non-existent materials, correct 403 RBAC enforcement for managers. DELETE /api/owner/delete-packing-material/{name}: Successfully deletes unused materials, correctly prevents deletion of materials used in finished products with proper error messages, 404 for non-existent materials, correct 403 RBAC enforcement. All edge cases handled properly including duplicate name prevention and referential integrity. 9/9 test cases passed (100% success rate)."
+
+  - task: "NEW Loose Oil Add/Edit/Delete Endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE TESTING COMPLETED: All NEW loose oil endpoints working perfectly. POST /api/owner/add-loose-oil: Successfully adds new loose oils with duplicate prevention, correct 403 RBAC enforcement. PUT /api/owner/edit-loose-oil: Successfully renames loose oils and updates recipes/finished products, proper 404 for non-existent oils, correct 403 RBAC enforcement. DELETE /api/owner/delete-loose-oil/{name}: Successfully deletes unused oils, correctly prevents deletion of oils with recipes or used in finished products with proper error messages, 404 for non-existent oils, correct 403 RBAC enforcement. All referential integrity maintained across recipes and finished products. 11/11 test cases passed (100% success rate)."

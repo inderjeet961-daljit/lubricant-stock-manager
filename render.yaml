@@ -1,0 +1,31 @@
+services:
+  # Backend API Service
+  - type: web
+    name: lubricant-backend
+    env: python
+    region: oregon
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/stock/loose-oils
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: lubricant_stock
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # Frontend Web Service
+  - type: web
+    name: lubricant-frontend
+    env: node
+    region: oregon
+    buildCommand: "cd frontend && npm install && npx expo export:web"
+    startCommand: "cd frontend && npx serve web-build -l $PORT"
+    envVars:
+      - key: EXPO_PUBLIC_BACKEND_URL
+        sync: false
+      - key: NODE_VERSION
+        value: 18

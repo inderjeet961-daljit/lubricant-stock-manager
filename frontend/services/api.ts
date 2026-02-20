@@ -91,6 +91,31 @@ export const addPackingMaterial = async (name: string, size_label: string) => {
   return response.data;
 };
 
+export const editPackingMaterial = async (name: string, new_name?: string, new_size_label?: string) => {
+  const response = await api.put('/owner/edit-packing-material', { name, new_name, new_size_label });
+  return response.data;
+};
+
+export const deletePackingMaterial = async (name: string) => {
+  const response = await api.delete(`/owner/delete-packing-material/${encodeURIComponent(name)}`);
+  return response.data;
+};
+
+export const addLooseOil = async (name: string) => {
+  const response = await api.post('/owner/add-loose-oil', { name });
+  return response.data;
+};
+
+export const editLooseOil = async (name: string, new_name?: string) => {
+  const response = await api.put('/owner/edit-loose-oil', { name, new_name });
+  return response.data;
+};
+
+export const deleteLooseOil = async (name: string) => {
+  const response = await api.delete(`/owner/delete-loose-oil/${encodeURIComponent(name)}`);
+  return response.data;
+};
+
 export const addFinishedProduct = async (
   name: string,
   pack_size: string,

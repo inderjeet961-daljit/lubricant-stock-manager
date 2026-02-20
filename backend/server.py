@@ -477,6 +477,222 @@ async def delete_raw_material(name: str, current_user: User = Depends(get_curren
         raise HTTPException(status_code=500, detail=f"Failed to delete raw material: {str(e)}")
 
 
+# ==================== PACKING MATERIAL EDIT/DELETE ====================
+
+class EditPackingMaterialRequest(BaseModel):
+    name: str
+    new_name: Optional[str] = None
+    new_size_label: Optional[str] = None
+
+
+@api_router.put("/owner/edit-packing-material")
+async def edit_packing_material(data: EditPackingMaterialRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can edit packing materials")
+    
+    try:
+        material = await db.packing_materials.find_one({"name": data.name})
+        if not material:
+            raise HTTPException(status_code=404, detail=f"Packing material '{data.name}' not found")
+        
+        update_data = {}
+        if data.new_name and data.new_name != data.name:
+            existing = await db.packing_materials.find_one({"name": data.new_name})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Packing material '{data.new_name}' already exists")
+            update_data["name"] = data.new_name
+            
+            # Update finished products that reference this packing material
+            await db.finished_products.update_many(
+                {"linked_packing_material": data.name},
+                {"$set": {"linked_packing_material": data.new_name}}
+            )
+        
+        if data.new_size_label is not None:
+            update_data["size_label"] = data.new_size_label
+        
+        if update_data:
+            await db.packing_materials.update_one({"name": data.name}, {"$set": update_data})
+            
+            transaction = Transaction(
+                type="edit_packing_material",
+                user_id=current_user.id,
+                user_name=current_user.name,
+                data={"original_name": data.name, "updates": update_data}
+            )
+            await db.transactions.insert_one(transaction.dict())
+            
+            logger.info(f"Packing material '{data.name}' updated by {current_user.name}")
+            return {"message": "Packing material updated successfully"}
+        
+        return {"message": "No changes to update"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error editing packing material: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to edit packing material: {str(e)}")
+
+
+@api_router.delete("/owner/delete-packing-material/{name}")
+async def delete_packing_material(name: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can delete packing materials")
+    
+    try:
+        material = await db.packing_materials.find_one({"name": name})
+        if not material:
+            raise HTTPException(status_code=404, detail=f"Packing material '{name}' not found")
+        
+        # Check if used in any finished products
+        product_using = await db.finished_products.find_one({"linked_packing_material": name})
+        if product_using:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete '{name}' - it's used by finished product '{product_using['name']}'. Remove the product first."
+            )
+        
+        await db.packing_materials.delete_one({"name": name})
+        
+        transaction = Transaction(
+            type="delete_packing_material",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={"deleted_name": name, "deleted_size_label": material.get("size_label"), "deleted_stock": material.get("stock")},
+            can_undo=False
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Packing material '{name}' deleted by {current_user.name}")
+        return {"message": f"Packing material '{name}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting packing material: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete packing material: {str(e)}")
+
+
+# ==================== LOOSE OIL EDIT/DELETE ====================
+
+class EditLooseOilRequest(BaseModel):
+    name: str
+    new_name: Optional[str] = None
+
+
+@api_router.put("/owner/edit-loose-oil")
+async def edit_loose_oil(data: EditLooseOilRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can edit loose oils")
+    
+    try:
+        oil = await db.loose_oils.find_one({"name": data.name})
+        if not oil:
+            raise HTTPException(status_code=404, detail=f"Loose oil '{data.name}' not found")
+        
+        if data.new_name and data.new_name != data.name:
+            existing = await db.loose_oils.find_one({"name": data.new_name})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Loose oil '{data.new_name}' already exists")
+            
+            # Update references
+            await db.loose_oils.update_one({"name": data.name}, {"$set": {"name": data.new_name}})
+            await db.recipes.update_many({"loose_oil_name": data.name}, {"$set": {"loose_oil_name": data.new_name}})
+            await db.finished_products.update_many({"linked_loose_oil": data.name}, {"$set": {"linked_loose_oil": data.new_name}})
+            
+            transaction = Transaction(
+                type="edit_loose_oil",
+                user_id=current_user.id,
+                user_name=current_user.name,
+                data={"original_name": data.name, "new_name": data.new_name}
+            )
+            await db.transactions.insert_one(transaction.dict())
+            
+            logger.info(f"Loose oil '{data.name}' renamed to '{data.new_name}' by {current_user.name}")
+            return {"message": f"Loose oil renamed to '{data.new_name}' successfully"}
+        
+        return {"message": "No changes to update"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error editing loose oil: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to edit loose oil: {str(e)}")
+
+
+@api_router.delete("/owner/delete-loose-oil/{name}")
+async def delete_loose_oil(name: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can delete loose oils")
+    
+    try:
+        oil = await db.loose_oils.find_one({"name": name})
+        if not oil:
+            raise HTTPException(status_code=404, detail=f"Loose oil '{name}' not found")
+        
+        # Check if used in recipes
+        recipe_using = await db.recipes.find_one({"loose_oil_name": name})
+        if recipe_using:
+            raise HTTPException(status_code=400, detail=f"Cannot delete '{name}' - it has a recipe. Delete the recipe first.")
+        
+        # Check if used in finished products
+        product_using = await db.finished_products.find_one({"linked_loose_oil": name})
+        if product_using:
+            raise HTTPException(status_code=400, detail=f"Cannot delete '{name}' - it's used by product '{product_using['name']}'. Remove the product first.")
+        
+        await db.loose_oils.delete_one({"name": name})
+        
+        transaction = Transaction(
+            type="delete_loose_oil",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={"deleted_name": name, "deleted_stock": oil.get("stock_litres")},
+            can_undo=False
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Loose oil '{name}' deleted by {current_user.name}")
+        return {"message": f"Loose oil '{name}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting loose oil: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete loose oil: {str(e)}")
+
+
+# ==================== ADD LOOSE OIL ====================
+
+class AddLooseOilRequest(BaseModel):
+    name: str
+
+
+@api_router.post("/owner/add-loose-oil")
+async def add_loose_oil(data: AddLooseOilRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can add loose oils")
+    
+    try:
+        existing = await db.loose_oils.find_one({"name": data.name})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Loose oil '{data.name}' already exists")
+        
+        oil = LooseOil(name=data.name)
+        await db.loose_oils.insert_one(oil.dict())
+        
+        transaction = Transaction(
+            type="add_loose_oil",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={"name": data.name}
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Loose oil '{data.name}' added by {current_user.name}")
+        return {"message": f"Loose oil '{data.name}' added successfully", "oil": oil}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding loose oil: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to add loose oil: {str(e)}")
+
+
 @api_router.post("/owner/add-packing-material")
 async def add_packing_material(data: AddPackingMaterialRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "owner":

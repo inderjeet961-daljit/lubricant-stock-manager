@@ -423,36 +423,55 @@ async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_cu
     if current_user.role != "owner":
         raise HTTPException(status_code=403, detail="Only owner can set recipes")
     
-    # Validate total percentage
-    total = sum(ing.percentage for ing in data.ingredients)
-    if abs(total - 100.0) > 0.01:
-        raise HTTPException(status_code=400, detail=f"Recipe percentages must total 100%, got {total}%")
-    
-    # Check if loose oil exists
-    loose_oil = await db.loose_oils.find_one({"name": data.loose_oil_name})
-    if not loose_oil:
-        raise HTTPException(status_code=400, detail=f"Loose oil '{data.loose_oil_name}' not found")
-    
-    # Check if recipe exists, update or create
-    existing = await db.recipes.find_one({"loose_oil_name": data.loose_oil_name})
-    
-    if existing:
-        await db.recipes.update_one(
-            {"loose_oil_name": data.loose_oil_name},
-            {"$set": {
-                "ingredients": [ing.dict() for ing in data.ingredients],
-                "updated_at": datetime.utcnow()
-            }}
-        )
-        return {"message": "Recipe updated successfully"}
-    else:
-        recipe = ManufacturingRecipe(
-            loose_oil_name=data.loose_oil_name,
-            ingredients=data.ingredients,
-            created_by=current_user.name
-        )
-        await db.recipes.insert_one(recipe.dict())
-        return {"message": "Recipe created successfully"}
+    try:
+        # Validate total percentage - allow small rounding errors
+        total = sum(ing.percentage for ing in data.ingredients)
+        if abs(total - 100.0) > 0.5:
+            raise HTTPException(status_code=400, detail=f"Recipe percentages must total 100%, got {total:.2f}%")
+        
+        # Validate all ingredients have valid percentages
+        for ing in data.ingredients:
+            if ing.percentage <= 0:
+                raise HTTPException(status_code=400, detail=f"Percentage for {ing.raw_material_name} must be positive")
+        
+        # Check if loose oil exists
+        loose_oil = await db.loose_oils.find_one({"name": data.loose_oil_name})
+        if not loose_oil:
+            raise HTTPException(status_code=400, detail=f"Loose oil '{data.loose_oil_name}' not found. Please ensure this oil exists in the system.")
+        
+        # Validate all raw materials exist
+        for ing in data.ingredients:
+            material = await db.raw_materials.find_one({"name": ing.raw_material_name})
+            if not material:
+                raise HTTPException(status_code=400, detail=f"Raw material '{ing.raw_material_name}' not found")
+        
+        # Check if recipe exists, update or create
+        existing = await db.recipes.find_one({"loose_oil_name": data.loose_oil_name})
+        
+        if existing:
+            await db.recipes.update_one(
+                {"loose_oil_name": data.loose_oil_name},
+                {"$set": {
+                    "ingredients": [ing.dict() for ing in data.ingredients],
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            logger.info(f"Recipe updated for {data.loose_oil_name} by {current_user.name}")
+            return {"message": f"Recipe for {data.loose_oil_name} updated successfully"}
+        else:
+            recipe = ManufacturingRecipe(
+                loose_oil_name=data.loose_oil_name,
+                ingredients=data.ingredients,
+                created_by=current_user.name
+            )
+            await db.recipes.insert_one(recipe.dict())
+            logger.info(f"Recipe created for {data.loose_oil_name} by {current_user.name}")
+            return {"message": f"Recipe for {data.loose_oil_name} created successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving recipe: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save recipe: {str(e)}")
 
 
 @api_router.post("/owner/take-stock-in-car")

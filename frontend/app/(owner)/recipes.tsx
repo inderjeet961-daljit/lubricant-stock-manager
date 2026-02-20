@@ -73,14 +73,17 @@ export default function RecipesScreen() {
   };
 
   const handleSetRecipe = async () => {
+    console.log('Starting recipe save...');
     const total = calculateTotal();
+    console.log('Recipe total:', total);
+    console.log('Selected oil:', selectedOil);
+    console.log('Ingredients:', ingredients);
     
     // More lenient validation - allow 0.5% difference for rounding
     if (Math.abs(total - 100) > 0.5) {
-      Alert.alert(
-        'Recipe Total Must Be 100%', 
-        `Current total: ${total.toFixed(2)}%\n\nPlease adjust percentages to total exactly 100%.`
-      );
+      const errorMsg = `Recipe Total Must Be 100%\n\nCurrent total: ${total.toFixed(2)}%\n\nPlease adjust percentages to total exactly 100%.`;
+      console.error('Validation failed:', errorMsg);
+      Alert.alert('Recipe Total Must Be 100%', errorMsg);
       return;
     }
 
@@ -91,19 +94,27 @@ export default function RecipesScreen() {
       percentage: parseFloat(ing.percentage),
     }));
 
+    console.log('Valid ingredients:', validIngredients);
+
     if (validIngredients.length === 0) {
-      Alert.alert('Error', 'Please add at least one ingredient with a percentage');
+      const errorMsg = 'Please add at least one ingredient with a percentage';
+      console.error(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     // Check for invalid numbers
     const hasInvalidNumbers = validIngredients.some(ing => isNaN(ing.percentage) || ing.percentage <= 0);
     if (hasInvalidNumbers) {
-      Alert.alert('Error', 'All percentages must be valid positive numbers');
+      const errorMsg = 'All percentages must be valid positive numbers';
+      console.error(errorMsg);
+      Alert.alert('Error', errorMsg);
       return;
     }
 
     try {
+      console.log('Attempting to save recipe...');
+      
       // Normalize to exactly 100% to avoid backend rejection
       const normalizedTotal = validIngredients.reduce((sum, ing) => sum + ing.percentage, 0);
       const normalizedIngredients = validIngredients.map(ing => ({
@@ -111,13 +122,28 @@ export default function RecipesScreen() {
         percentage: (ing.percentage / normalizedTotal) * 100
       }));
 
-      await setRecipe(selectedOil, normalizedIngredients);
-      Alert.alert('Success', 'Recipe saved successfully!');
+      console.log('Normalized ingredients:', normalizedIngredients);
+      console.log('Calling API with oil:', selectedOil);
+
+      const response = await setRecipe(selectedOil, normalizedIngredients);
+      console.log('API Response:', response);
+      
+      Alert.alert('Success', `Recipe for ${selectedOil} saved successfully!`);
       closeModal();
       loadData();
     } catch (error: any) {
-      console.error('Recipe save error:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to save recipe. Please try again.');
+      console.error('Recipe save error - Full error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error data:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.detail 
+        || error.message 
+        || 'Failed to save recipe. Please check your internet connection and try again.';
+      
+      Alert.alert(
+        'Failed to Save Recipe',
+        `Error: ${errorMessage}\n\nOil: ${selectedOil}\nIngredients: ${validIngredients.length}\n\nPlease try again or contact support if this persists.`
+      );
     }
   };
 

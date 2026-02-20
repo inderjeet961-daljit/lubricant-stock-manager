@@ -11,6 +11,7 @@ import {
   Picker,
   FlatList,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -20,6 +21,11 @@ import {
   editRawMaterial,
   deleteRawMaterial,
   addPackingMaterial,
+  editPackingMaterial,
+  deletePackingMaterial,
+  addLooseOil,
+  editLooseOil,
+  deleteLooseOil,
   addFinishedProduct,
   getLooseOils,
   getPackingMaterials,
@@ -31,9 +37,11 @@ export default function AddItemsScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [listModalVisible, setListModalVisible] = useState(false);
   const [itemType, setItemType] = useState(null);
+  const [listType, setListType] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   
+  // Add form states
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('litres');
   const [sizeLabel, setSizeLabel] = useState('');
@@ -41,11 +49,13 @@ export default function AddItemsScreen() {
   const [linkedLooseOil, setLinkedLooseOil] = useState('');
   const [linkedPackingMaterial, setLinkedPackingMaterial] = useState('');
   
-  // For editing
+  // Edit states
   const [editingItem, setEditingItem] = useState(null);
   const [editName, setEditName] = useState('');
   const [editUnit, setEditUnit] = useState('litres');
+  const [editSizeLabel, setEditSizeLabel] = useState('');
   
+  // Data
   const [looseOils, setLooseOils] = useState([]);
   const [packingMaterials, setPackingMaterials] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
@@ -78,11 +88,12 @@ export default function AddItemsScreen() {
     setRefreshing(false);
   };
 
-  const openModal = (type) => {
+  const openAddModal = (type) => {
     setItemType(type);
     setName('');
     setSizeLabel('');
     setPackSize('');
+    setUnit('litres');
     setModalVisible(true);
   };
 
@@ -91,18 +102,25 @@ export default function AddItemsScreen() {
     setItemType(null);
   };
 
-  const openListModal = () => {
+  const openListModal = (type) => {
+    setListType(type);
     setListModalVisible(true);
   };
 
   const closeListModal = () => {
     setListModalVisible(false);
+    setListType(null);
   };
 
-  const openEditModal = (item) => {
+  const openEditModal = (item, type) => {
     setEditingItem(item);
+    setListType(type);
     setEditName(item.name);
-    setEditUnit(item.unit);
+    if (type === 'raw') {
+      setEditUnit(item.unit);
+    } else if (type === 'packing') {
+      setEditSizeLabel(item.size_label || '');
+    }
     setEditModalVisible(true);
   };
 
@@ -111,6 +129,7 @@ export default function AddItemsScreen() {
     setEditingItem(null);
     setEditName('');
     setEditUnit('litres');
+    setEditSizeLabel('');
   };
 
   const handleAddItem = async () => {
@@ -124,11 +143,12 @@ export default function AddItemsScreen() {
       if (itemType === 'raw') {
         await addRawMaterial(name, unit);
         Alert.alert('Success', 'Raw material added successfully');
-        loadData();
       } else if (itemType === 'packing') {
         await addPackingMaterial(name, sizeLabel);
         Alert.alert('Success', 'Packing material added successfully');
-        loadData();
+      } else if (itemType === 'loose') {
+        await addLooseOil(name);
+        Alert.alert('Success', 'Loose oil added successfully');
       } else if (itemType === 'finished') {
         if (!packSize || !linkedLooseOil || !linkedPackingMaterial) {
           Alert.alert('Error', 'Please fill all fields');
@@ -139,15 +159,16 @@ export default function AddItemsScreen() {
         Alert.alert('Success', 'Finished product added successfully');
       }
       closeModal();
+      loadData();
     } catch (error) {
       console.error('Error adding item:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to add item. Please try again.');
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to add item');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditRawMaterial = async () => {
+  const handleEditItem = async () => {
     if (!editName.trim()) {
       Alert.alert('Error', 'Name cannot be empty');
       return;
@@ -155,23 +176,36 @@ export default function AddItemsScreen() {
 
     setLoading(true);
     try {
-      await editRawMaterial(
-        editingItem.name,
-        editName !== editingItem.name ? editName : undefined,
-        editUnit !== editingItem.unit ? editUnit : undefined
-      );
-      Alert.alert('Success', 'Raw material updated successfully');
+      if (listType === 'raw') {
+        await editRawMaterial(
+          editingItem.name,
+          editName !== editingItem.name ? editName : undefined,
+          editUnit !== editingItem.unit ? editUnit : undefined
+        );
+      } else if (listType === 'packing') {
+        await editPackingMaterial(
+          editingItem.name,
+          editName !== editingItem.name ? editName : undefined,
+          editSizeLabel !== editingItem.size_label ? editSizeLabel : undefined
+        );
+      } else if (listType === 'loose') {
+        await editLooseOil(
+          editingItem.name,
+          editName !== editingItem.name ? editName : undefined
+        );
+      }
+      Alert.alert('Success', 'Item updated successfully');
       closeEditModal();
       loadData();
     } catch (error) {
-      console.error('Error editing raw material:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to update raw material. Please try again.');
+      console.error('Error editing item:', error);
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to update item');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteRawMaterial = (item) => {
+  const handleDeleteItem = (item, type) => {
     Alert.alert(
       'Confirm Delete',
       `Are you sure you want to delete "${item.name}"?\n\nThis action cannot be undone.`,
@@ -183,12 +217,18 @@ export default function AddItemsScreen() {
           onPress: async () => {
             setLoading(true);
             try {
-              await deleteRawMaterial(item.name);
+              if (type === 'raw') {
+                await deleteRawMaterial(item.name);
+              } else if (type === 'packing') {
+                await deletePackingMaterial(item.name);
+              } else if (type === 'loose') {
+                await deleteLooseOil(item.name);
+              }
               Alert.alert('Success', `"${item.name}" deleted successfully`);
               loadData();
             } catch (error) {
-              console.error('Error deleting raw material:', error);
-              Alert.alert('Error', error.response?.data?.detail || 'Failed to delete raw material. Please try again.');
+              console.error('Error deleting item:', error);
+              Alert.alert('Error', error.response?.data?.detail || 'Failed to delete item');
             } finally {
               setLoading(false);
             }
@@ -198,23 +238,50 @@ export default function AddItemsScreen() {
     );
   };
 
-  const renderRawMaterialItem = ({ item }) => (
+  const getListData = () => {
+    if (listType === 'raw') return rawMaterials;
+    if (listType === 'packing') return packingMaterials;
+    if (listType === 'loose') return looseOils;
+    return [];
+  };
+
+  const getListTitle = () => {
+    if (listType === 'raw') return 'Raw Materials';
+    if (listType === 'packing') return 'Packing Materials';
+    if (listType === 'loose') return 'Loose Oils';
+    return 'Items';
+  };
+
+  const renderListItem = ({ item }) => (
     <View style={styles.listItem}>
       <View style={styles.listItemInfo}>
         <Text style={styles.listItemName}>{item.name}</Text>
-        <Text style={styles.listItemUnit}>Unit: {item.unit}</Text>
-        <Text style={styles.listItemStock}>Stock: {item.stock || 0} {item.unit}</Text>
+        {listType === 'raw' && (
+          <>
+            <Text style={styles.listItemDetail}>Unit: {item.unit}</Text>
+            <Text style={styles.listItemStock}>Stock: {item.stock || 0} {item.unit}</Text>
+          </>
+        )}
+        {listType === 'packing' && (
+          <>
+            {item.size_label && <Text style={styles.listItemDetail}>Size: {item.size_label}</Text>}
+            <Text style={styles.listItemStock}>Stock: {item.stock || 0} units</Text>
+          </>
+        )}
+        {listType === 'loose' && (
+          <Text style={styles.listItemStock}>Stock: {item.stock_litres || 0} litres</Text>
+        )}
       </View>
       <View style={styles.listItemActions}>
         <TouchableOpacity
           style={[styles.actionButton, styles.editButton]}
-          onPress={() => openEditModal(item)}
+          onPress={() => openEditModal(item, listType)}
         >
           <Ionicons name="pencil" size={18} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
-          onPress={() => handleDeleteRawMaterial(item)}
+          onPress={() => handleDeleteItem(item, listType)}
         >
           <Ionicons name="trash" size={18} color="#fff" />
         </TouchableOpacity>
@@ -227,69 +294,106 @@ export default function AddItemsScreen() {
       <StatusBar style="dark" />
       
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Add New Items</Text>
-        <Text style={styles.headerSubtitle}>Create new products and materials</Text>
+        <Text style={styles.headerTitle}>Manage Items</Text>
+        <Text style={styles.headerSubtitle}>Add, edit, or delete products</Text>
       </View>
 
       <ScrollView 
         style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View style={styles.cardsContainer}>
+        {/* ADD SECTION */}
+        <Text style={styles.sectionTitle}>Add New Items</Text>
+        <View style={styles.cardsRow}>
           <TouchableOpacity
-            style={[styles.card, { backgroundColor: '#FF9500' }]}
-            onPress={() => openModal('raw')}
+            style={[styles.smallCard, { backgroundColor: '#FF9500' }]}
+            onPress={() => openAddModal('raw')}
           >
-            <Ionicons name="flask" size={40} color="#fff" />
-            <Text style={styles.cardTitle}>Add Raw Material</Text>
-            <Text style={styles.cardDescription}>Base oils, additives, etc.</Text>
-          </TouchableOpacity>
-
-          {/* View/Edit/Delete Raw Materials Button */}
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: '#8E8E93' }]}
-            onPress={openListModal}
-          >
-            <Ionicons name="list" size={40} color="#fff" />
-            <Text style={styles.cardTitle}>Manage Raw Materials</Text>
-            <Text style={styles.cardDescription}>View, edit or delete ({rawMaterials.length} items)</Text>
+            <Ionicons name="flask" size={28} color="#fff" />
+            <Text style={styles.smallCardTitle}>Raw Material</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.card, { backgroundColor: '#34C759' }]}
-            onPress={() => openModal('packing')}
+            style={[styles.smallCard, { backgroundColor: '#34C759' }]}
+            onPress={() => openAddModal('packing')}
           >
-            <Ionicons name="albums" size={40} color="#fff" />
-            <Text style={styles.cardTitle}>Add Packing Material</Text>
-            <Text style={styles.cardDescription}>Bottles, containers, etc.</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: '#007AFF' }]}
-            onPress={() => openModal('finished')}
-          >
-            <Ionicons name="cube" size={40} color="#fff" />
-            <Text style={styles.cardTitle}>Add Finished Product</Text>
-            <Text style={styles.cardDescription}>Link oil & packing</Text>
+            <Ionicons name="albums" size={28} color="#fff" />
+            <Text style={styles.smallCardTitle}>Packing</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.cardsRow}>
+          <TouchableOpacity
+            style={[styles.smallCard, { backgroundColor: '#5856D6' }]}
+            onPress={() => openAddModal('loose')}
+          >
+            <Ionicons name="water" size={28} color="#fff" />
+            <Text style={styles.smallCardTitle}>Loose Oil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.smallCard, { backgroundColor: '#007AFF' }]}
+            onPress={() => openAddModal('finished')}
+          >
+            <Ionicons name="cube" size={28} color="#fff" />
+            <Text style={styles.smallCardTitle}>Finished Product</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* MANAGE SECTION */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Manage Existing Items</Text>
+        
+        <TouchableOpacity style={styles.manageCard} onPress={() => openListModal('raw')}>
+          <View style={styles.manageCardLeft}>
+            <View style={[styles.manageIconBox, { backgroundColor: '#FF9500' }]}>
+              <Ionicons name="flask" size={24} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.manageCardTitle}>Raw Materials</Text>
+              <Text style={styles.manageCardCount}>{rawMaterials.length} items</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.manageCard} onPress={() => openListModal('packing')}>
+          <View style={styles.manageCardLeft}>
+            <View style={[styles.manageIconBox, { backgroundColor: '#34C759' }]}>
+              <Ionicons name="albums" size={24} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.manageCardTitle}>Packing Materials</Text>
+              <Text style={styles.manageCardCount}>{packingMaterials.length} items</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.manageCard} onPress={() => openListModal('loose')}>
+          <View style={styles.manageCardLeft}>
+            <View style={[styles.manageIconBox, { backgroundColor: '#5856D6' }]}>
+              <Ionicons name="water" size={24} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.manageCardTitle}>Loose Oils</Text>
+              <Text style={styles.manageCardCount}>{looseOils.length} items</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Item Modal */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={closeModal}
-      >
+      {/* ADD MODAL */}
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={closeModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {itemType === 'raw' && 'Add Raw Material'}
                 {itemType === 'packing' && 'Add Packing Material'}
+                {itemType === 'loose' && 'Add Loose Oil'}
                 {itemType === 'finished' && 'Add Finished Product'}
               </Text>
               <TouchableOpacity onPress={closeModal}>
@@ -310,11 +414,7 @@ export default function AddItemsScreen() {
                 <>
                   <Text style={styles.label}>Unit *</Text>
                   <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={unit}
-                      onValueChange={setUnit}
-                      style={styles.picker}
-                    >
+                    <Picker selectedValue={unit} onValueChange={setUnit} style={styles.picker}>
                       <Picker.Item label="Litres" value="litres" />
                       <Picker.Item label="Kg" value="kg" />
                     </Picker>
@@ -346,11 +446,7 @@ export default function AddItemsScreen() {
 
                   <Text style={styles.label}>Linked Loose Oil *</Text>
                   <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={linkedLooseOil}
-                      onValueChange={setLinkedLooseOil}
-                      style={styles.picker}
-                    >
+                    <Picker selectedValue={linkedLooseOil} onValueChange={setLinkedLooseOil} style={styles.picker}>
                       {looseOils.map((oil) => (
                         <Picker.Item key={oil.id} label={oil.name} value={oil.name} />
                       ))}
@@ -359,11 +455,7 @@ export default function AddItemsScreen() {
 
                   <Text style={styles.label}>Linked Packing Material *</Text>
                   <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={linkedPackingMaterial}
-                      onValueChange={setLinkedPackingMaterial}
-                      style={styles.picker}
-                    >
+                    <Picker selectedValue={linkedPackingMaterial} onValueChange={setLinkedPackingMaterial} style={styles.picker}>
                       {packingMaterials.map((pack) => (
                         <Picker.Item key={pack.id} label={pack.name} value={pack.name} />
                       ))}
@@ -372,45 +464,42 @@ export default function AddItemsScreen() {
                 </>
               )}
 
-              <TouchableOpacity 
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+              <TouchableOpacity
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 onPress={handleAddItem}
                 disabled={loading}
               >
-                <Text style={styles.submitButtonText}>
-                  {loading ? 'Adding...' : 'Add Item'}
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Add Item</Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
-      {/* Raw Materials List Modal */}
-      <Modal
-        visible={listModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={closeListModal}
-      >
+      {/* LIST MODAL */}
+      <Modal visible={listModalVisible} animationType="slide" transparent onRequestClose={closeListModal}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Raw Materials</Text>
+              <Text style={styles.modalTitle}>{getListTitle()}</Text>
               <TouchableOpacity onPress={closeListModal}>
                 <Ionicons name="close" size={24} color="#8E8E93" />
               </TouchableOpacity>
             </View>
 
             <FlatList
-              data={rawMaterials}
+              data={getListData()}
               keyExtractor={(item) => item.id}
-              renderItem={renderRawMaterialItem}
+              renderItem={renderListItem}
               contentContainerStyle={styles.listContainer}
               ListEmptyComponent={
                 <View style={styles.emptyList}>
-                  <Ionicons name="flask-outline" size={48} color="#8E8E93" />
-                  <Text style={styles.emptyListText}>No raw materials yet</Text>
+                  <Ionicons name="folder-open-outline" size={48} color="#8E8E93" />
+                  <Text style={styles.emptyListText}>No items found</Text>
                 </View>
               }
             />
@@ -418,17 +507,12 @@ export default function AddItemsScreen() {
         </View>
       </Modal>
 
-      {/* Edit Raw Material Modal */}
-      <Modal
-        visible={editModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={closeEditModal}
-      >
+      {/* EDIT MODAL */}
+      <Modal visible={editModalVisible} animationType="slide" transparent onRequestClose={closeEditModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Raw Material</Text>
+              <Text style={styles.modalTitle}>Edit {getListTitle().slice(0, -1)}</Text>
               <TouchableOpacity onPress={closeEditModal}>
                 <Ionicons name="close" size={24} color="#8E8E93" />
               </TouchableOpacity>
@@ -443,26 +527,40 @@ export default function AddItemsScreen() {
                 onChangeText={setEditName}
               />
 
-              <Text style={styles.label}>Unit *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={editUnit}
-                  onValueChange={setEditUnit}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Litres" value="litres" />
-                  <Picker.Item label="Kg" value="kg" />
-                </Picker>
-              </View>
+              {listType === 'raw' && (
+                <>
+                  <Text style={styles.label}>Unit *</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker selectedValue={editUnit} onValueChange={setEditUnit} style={styles.picker}>
+                      <Picker.Item label="Litres" value="litres" />
+                      <Picker.Item label="Kg" value="kg" />
+                    </Picker>
+                  </View>
+                </>
+              )}
 
-              <TouchableOpacity 
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
-                onPress={handleEditRawMaterial}
+              {listType === 'packing' && (
+                <>
+                  <Text style={styles.label}>Size Label</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 1L, 3.5L, 5L"
+                    value={editSizeLabel}
+                    onChangeText={setEditSizeLabel}
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                onPress={handleEditItem}
                 disabled={loading}
               >
-                <Text style={styles.submitButtonText}>
-                  {loading ? 'Updating...' : 'Update Material'}
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Update</Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -473,10 +571,7 @@ export default function AddItemsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: {
     backgroundColor: '#fff',
     paddingHorizontal: 24,
@@ -484,40 +579,56 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#1a1a1a' },
+  headerSubtitle: { fontSize: 14, color: '#8E8E93', marginTop: 4 },
+  content: { flex: 1 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
     color: '#1a1a1a',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 4,
+  cardsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 12,
   },
-  content: {
+  smallCard: {
     flex: 1,
-  },
-  cardsContainer: {
     padding: 16,
-  },
-  card: {
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 12,
-  },
-  cardDescription: {
+  smallCardTitle: {
     fontSize: 14,
+    fontWeight: '600',
     color: '#fff',
-    marginTop: 4,
-    opacity: 0.9,
+    marginTop: 8,
+    textAlign: 'center',
   },
+  manageCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  manageCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  manageIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  manageCardTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
+  manageCardCount: { fontSize: 14, color: '#8E8E93', marginTop: 2 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -538,21 +649,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  modalBody: {
-    padding: 24,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 16,
-  },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1a1a1a' },
+  modalBody: { padding: 24 },
+  label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 8, marginTop: 16 },
   input: {
     backgroundColor: '#f9f9f9',
     borderWidth: 1,
@@ -568,9 +667,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f9f9f9',
   },
-  picker: {
-    height: 50,
-  },
+  picker: { height: 50 },
   submitButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 14,
@@ -578,17 +675,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 24,
   },
-  submitButtonDisabled: {
-    backgroundColor: '#8E8E93',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  listContainer: {
-    padding: 16,
-  },
+  submitButtonDisabled: { backgroundColor: '#8E8E93' },
+  submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  listContainer: { padding: 16 },
   listItem: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -603,28 +692,11 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  listItemInfo: {
-    flex: 1,
-  },
-  listItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  listItemUnit: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 4,
-  },
-  listItemStock: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginTop: 2,
-  },
-  listItemActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  listItemInfo: { flex: 1 },
+  listItemName: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
+  listItemDetail: { fontSize: 14, color: '#8E8E93', marginTop: 4 },
+  listItemStock: { fontSize: 14, color: '#007AFF', marginTop: 2 },
+  listItemActions: { flexDirection: 'row', gap: 8 },
   actionButton: {
     width: 36,
     height: 36,
@@ -632,20 +704,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  editButton: {
-    backgroundColor: '#007AFF',
-  },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
-  },
-  emptyList: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
-  },
-  emptyListText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    marginTop: 12,
-  },
+  editButton: { backgroundColor: '#007AFF' },
+  deleteButton: { backgroundColor: '#FF3B30' },
+  emptyList: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
+  emptyListText: { fontSize: 16, color: '#8E8E93', marginTop: 12 },
 });

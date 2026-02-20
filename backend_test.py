@@ -919,6 +919,13 @@ class LubricantAPITester:
         # Run all tests in order
         self.test_01_init_data()
         self.test_02_authentication()
+        
+        # Focus on NEW endpoints as requested in review
+        print("\n🎯 TESTING NEW ENDPOINTS AS REQUESTED:")
+        self.test_11_new_packing_material_endpoints()
+        self.test_12_new_loose_oil_endpoints()
+        
+        # Run remaining tests for completeness
         self.test_03_stock_endpoints()
         self.test_04_owner_actions()
         self.test_05_manager_actions()

@@ -74,30 +74,50 @@ export default function RecipesScreen() {
 
   const handleSetRecipe = async () => {
     const total = calculateTotal();
-    if (Math.abs(total - 100) > 0.01) {
-      Alert.alert('Error', `Recipe percentages must total 100%. Current total: ${total.toFixed(2)}%`);
+    
+    // More lenient validation - allow 0.5% difference for rounding
+    if (Math.abs(total - 100) > 0.5) {
+      Alert.alert(
+        'Recipe Total Must Be 100%', 
+        `Current total: ${total.toFixed(2)}%\n\nPlease adjust percentages to total exactly 100%.`
+      );
       return;
     }
 
     const validIngredients = ingredients.filter(
-      (ing) => ing.raw_material_name && ing.percentage
+      (ing) => ing.raw_material_name && ing.percentage && ing.percentage.trim() !== ''
     ).map((ing) => ({
       raw_material_name: ing.raw_material_name,
       percentage: parseFloat(ing.percentage),
     }));
 
     if (validIngredients.length === 0) {
-      Alert.alert('Error', 'Please add at least one ingredient');
+      Alert.alert('Error', 'Please add at least one ingredient with a percentage');
+      return;
+    }
+
+    // Check for invalid numbers
+    const hasInvalidNumbers = validIngredients.some(ing => isNaN(ing.percentage) || ing.percentage <= 0);
+    if (hasInvalidNumbers) {
+      Alert.alert('Error', 'All percentages must be valid positive numbers');
       return;
     }
 
     try {
-      await setRecipe(selectedOil, validIngredients);
-      Alert.alert('Success', 'Recipe saved successfully');
+      // Normalize to exactly 100% to avoid backend rejection
+      const normalizedTotal = validIngredients.reduce((sum, ing) => sum + ing.percentage, 0);
+      const normalizedIngredients = validIngredients.map(ing => ({
+        raw_material_name: ing.raw_material_name,
+        percentage: (ing.percentage / normalizedTotal) * 100
+      }));
+
+      await setRecipe(selectedOil, normalizedIngredients);
+      Alert.alert('Success', 'Recipe saved successfully!');
       closeModal();
       loadData();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to save recipe');
+    } catch (error: any) {
+      console.error('Recipe save error:', error);
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to save recipe. Please try again.');
     }
   };
 

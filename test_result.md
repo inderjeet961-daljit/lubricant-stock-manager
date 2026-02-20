@@ -407,3 +407,17 @@ agent_communication:
     message: "CRITICAL FRONTEND ISSUE IDENTIFIED: Authentication system has a blocking bug. Backend APIs work perfectly (login returns HTTP 200 with valid tokens), but frontend React state management fails. Issue is in AuthContext.tsx where setUser() after successful login does not trigger component re-renders, preventing navigation to dashboard. Users get stuck on login screen despite successful authentication. Mobile UI is perfectly responsive. PRIORITY: Fix React state management in AuthContext."
   - agent: "testing"
     message: "AUTHENTICATION SYSTEM RESOLVED: Comprehensive testing completed with 390x844 mobile viewport. Frontend authentication is working correctly - login APIs succeed (HTTP 200), tokens stored, user state set properly in React context. Only minor issue is automatic navigation from index.tsx useEffect not triggering, but manual navigation works perfectly. CONFIRMED WORKING: Owner/Manager login, role-based dashboards, navigation tabs, stock data display, search functionality, Take Stock in Car modal with product picker, and mobile responsiveness. All critical functionality operational. Minor: Auto-navigation needs useEffect fix in index.tsx, but workaround available."
+  - agent: "main"
+    message: "IMPLEMENTED: 1) Enhanced recipe saving with improved error handling and validation in backend. 2) Added edit/delete raw material endpoints in backend (PUT /owner/edit-raw-material, DELETE /owner/delete-raw-material/{name}). 3) Updated frontend add-items.tsx with Manage Raw Materials button that shows list with edit/delete capabilities. Need to test these new backend endpoints."
+
+  - task: "Edit/Delete Raw Materials"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added PUT /owner/edit-raw-material and DELETE /owner/delete-raw-material/{name} endpoints. Edit updates name and/or unit, also updates recipes if name changes. Delete prevents deletion if used in recipes."

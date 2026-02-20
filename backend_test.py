@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Optional, Any
 
 # Base configuration
-BASE_URL = "https://fleet-lubricant-hub.preview.emergentagent.com/api"
+BASE_URL = "https://oil-inventory-debug.preview.emergentagent.com/api"
 
 class LubricantAPITester:
     def __init__(self):

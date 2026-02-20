@@ -50,6 +50,10 @@ class LubricantAPITester:
                 response = requests.get(url, headers=headers, timeout=30)
             elif method.upper() == "POST":
                 response = requests.post(url, headers=headers, json=data, timeout=30)
+            elif method.upper() == "PUT":
+                response = requests.put(url, headers=headers, json=data, timeout=30)
+            elif method.upper() == "DELETE":
+                response = requests.delete(url, headers=headers, timeout=30)
             else:
                 raise ValueError(f"Unsupported method: {method}")
                 

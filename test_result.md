@@ -412,12 +412,15 @@ agent_communication:
 
   - task: "Edit/Delete Raw Materials"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added PUT /owner/edit-raw-material and DELETE /owner/delete-raw-material/{name} endpoints. Edit updates name and/or unit, also updates recipes if name changes. Delete prevents deletion if used in recipes."
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE TESTING COMPLETED: All new endpoints working perfectly. PUT /owner/edit-raw-material: Successfully edits name/unit individually or together, updates recipes when names change, proper 404 for non-existent materials, correct 403 RBAC enforcement. DELETE /owner/delete-raw-material/{name}: Successfully deletes unused materials, correctly prevents deletion of materials used in recipes with proper error messages, 404 for non-existent materials, correct 403 RBAC enforcement. POST /owner/set-recipe: Enhanced with robust validation - accepts valid 100% recipes, rejects invalid percentages with clear messages, validates loose oil existence, validates raw material existence. All RBAC working correctly - manager denied access (403) to all owner endpoints, unauthenticated requests properly rejected (401/422). Edge cases handled: duplicate name prevention, negative percentages rejected, empty edits handled gracefully. 20/20 test cases passed (100% success rate)."

@@ -587,6 +587,329 @@ class LubricantAPITester:
         else:
             self.log_result("Prevent Negative Stock", False, "System allowed negative stock", response)
 
+    def test_11_new_packing_material_endpoints(self):
+        """Test 11: NEW Packing Material Edit/Delete Endpoints"""
+        print("\n=== Test 11: NEW Packing Material Edit/Delete ===")
+        
+        if not self.owner_token or not self.manager_token:
+            self.log_result("Packing Material Endpoints", False, "Missing required tokens")
+            return
+
+        # First, add a test packing material to edit/delete
+        test_pack_data = {
+            "name": "Test Edit Pack 500ml", 
+            "size_label": "500ml"
+        }
+        
+        response = self.make_request("POST", "/owner/add-packing-material", test_pack_data, self.owner_token)
+        if response["success"] or "already exists" in str(response["data"]):
+            self.log_result("Setup Test Packing Material", True, "Test packing material ready")
+        else:
+            self.log_result("Setup Test Packing Material", False, f"Failed: {response['data']}", response)
+            return
+
+        # Test 1: PUT /api/owner/edit-packing-material - Edit name and size_label
+        edit_data = {
+            "name": "Test Edit Pack 500ml",
+            "new_name": "Test Edited Pack 1L", 
+            "new_size_label": "1L"
+        }
+        
+        response = self.make_request("PUT", "/owner/edit-packing-material", edit_data, self.owner_token)
+        if response["success"]:
+            self.log_result(
+                "Edit Packing Material (Name + Size)",
+                True,
+                "Successfully edited both name and size_label"
+            )
+        else:
+            self.log_result("Edit Packing Material (Name + Size)", False, f"Failed: {response['data']}", response)
+
+        # Test 2: Edit only size_label
+        edit_size_only = {
+            "name": "Test Edited Pack 1L",
+            "new_size_label": "2L"
+        }
+        
+        response = self.make_request("PUT", "/owner/edit-packing-material", edit_size_only, self.owner_token)
+        if response["success"]:
+            self.log_result(
+                "Edit Packing Material (Size Only)",
+                True,
+                "Successfully edited size_label only"
+            )
+        else:
+            self.log_result("Edit Packing Material (Size Only)", False, f"Failed: {response['data']}", response)
+
+        # Test 3: Test RBAC - Manager should get 403
+        response = self.make_request("PUT", "/owner/edit-packing-material", edit_data, self.manager_token)
+        if not response["success"] and response["status_code"] == 403:
+            self.log_result(
+                "Edit Packing Material RBAC",
+                True,
+                "Correctly denied manager access (403)"
+            )
+        else:
+            self.log_result("Edit Packing Material RBAC", False, "Manager was allowed access", response)
+
+        # Test 4: Test editing non-existent packing material
+        non_existent_edit = {
+            "name": "NonExistentPack123",
+            "new_name": "Should Fail"
+        }
+        
+        response = self.make_request("PUT", "/owner/edit-packing-material", non_existent_edit, self.owner_token)
+        if not response["success"] and response["status_code"] == 404:
+            self.log_result(
+                "Edit Non-Existent Packing Material",
+                True,
+                "Correctly returned 404 for non-existent material"
+            )
+        else:
+            self.log_result("Edit Non-Existent Packing Material", False, "Should have returned 404", response)
+
+        # Test 5: Create a finished product to test deletion prevention
+        product_data = {
+            "name": "Test Product For Deletion",
+            "pack_size": "2L",
+            "linked_loose_oil": "15W40",  # Should exist from earlier tests
+            "linked_packing_material": "Test Edited Pack 1L"
+        }
+        
+        response = self.make_request("POST", "/owner/add-finished-product", product_data, self.owner_token)
+        if response["success"] or "already exists" in str(response["data"]):
+            
+            # Test 6: Try to delete packing material used in finished product (should fail)
+            response = self.make_request("DELETE", "/owner/delete-packing-material/Test Edited Pack 1L", None, self.owner_token)
+            if not response["success"] and "used by finished product" in str(response["data"]):
+                self.log_result(
+                    "Delete Packing Material (Used in Product)",
+                    True,
+                    "Correctly prevented deletion of material used in finished product"
+                )
+            else:
+                self.log_result("Delete Packing Material (Used in Product)", False, "Should have prevented deletion", response)
+
+            # Clean up - delete the test finished product
+            # Note: We'd need a delete finished product endpoint for proper cleanup
+
+        # Test 7: Create a deletable packing material  
+        deletable_pack = {
+            "name": "Deletable Test Pack",
+            "size_label": "250ml"
+        }
+        
+        response = self.make_request("POST", "/owner/add-packing-material", deletable_pack, self.owner_token)
+        if response["success"] or "already exists" in str(response["data"]):
+            
+            # Test 8: Successfully delete unused packing material
+            response = self.make_request("DELETE", "/owner/delete-packing-material/Deletable Test Pack", None, self.owner_token)
+            if response["success"]:
+                self.log_result(
+                    "Delete Unused Packing Material", 
+                    True,
+                    "Successfully deleted unused packing material"
+                )
+            else:
+                self.log_result("Delete Unused Packing Material", False, f"Failed: {response['data']}", response)
+
+        # Test 9: Try to delete non-existent packing material
+        response = self.make_request("DELETE", "/owner/delete-packing-material/NonExistentPack123", None, self.owner_token)
+        if not response["success"] and response["status_code"] == 404:
+            self.log_result(
+                "Delete Non-Existent Packing Material",
+                True,
+                "Correctly returned 404 for non-existent material"
+            )
+        else:
+            self.log_result("Delete Non-Existent Packing Material", False, "Should have returned 404", response)
+
+        # Test 10: Test RBAC for deletion - Manager should get 403
+        response = self.make_request("DELETE", "/owner/delete-packing-material/SomePack", None, self.manager_token)
+        if not response["success"] and response["status_code"] == 403:
+            self.log_result(
+                "Delete Packing Material RBAC",
+                True,
+                "Correctly denied manager access to delete endpoint (403)"
+            )
+        else:
+            self.log_result("Delete Packing Material RBAC", False, "Manager was allowed access", response)
+
+    def test_12_new_loose_oil_endpoints(self):
+        """Test 12: NEW Loose Oil Add/Edit/Delete Endpoints"""
+        print("\n=== Test 12: NEW Loose Oil Add/Edit/Delete ===")
+        
+        if not self.owner_token or not self.manager_token:
+            self.log_result("Loose Oil Endpoints", False, "Missing required tokens")
+            return
+
+        # Test 1: POST /api/owner/add-loose-oil
+        add_oil_data = {
+            "name": "Test New Oil"
+        }
+        
+        response = self.make_request("POST", "/owner/add-loose-oil", add_oil_data, self.owner_token)
+        if response["success"]:
+            self.log_result(
+                "Add New Loose Oil",
+                True,
+                f"Successfully added loose oil: {response['data']['oil']['name']}"
+            )
+        elif "already exists" in str(response["data"]):
+            self.log_result("Add New Loose Oil", True, "Loose oil already exists (expected on repeat runs)")
+        else:
+            self.log_result("Add New Loose Oil", False, f"Failed: {response['data']}", response)
+
+        # Test 2: Try to add duplicate loose oil
+        response = self.make_request("POST", "/owner/add-loose-oil", add_oil_data, self.owner_token)
+        if not response["success"] and "already exists" in str(response["data"]):
+            self.log_result(
+                "Add Duplicate Loose Oil",
+                True,
+                "Correctly prevented duplicate loose oil creation"
+            )
+        else:
+            self.log_result("Add Duplicate Loose Oil", False, "Should have prevented duplicate", response)
+
+        # Test 3: Test RBAC for adding loose oil - Manager should get 403
+        response = self.make_request("POST", "/owner/add-loose-oil", add_oil_data, self.manager_token)
+        if not response["success"] and response["status_code"] == 403:
+            self.log_result(
+                "Add Loose Oil RBAC",
+                True,
+                "Correctly denied manager access (403)"
+            )
+        else:
+            self.log_result("Add Loose Oil RBAC", False, "Manager was allowed access", response)
+
+        # Test 4: PUT /api/owner/edit-loose-oil
+        edit_oil_data = {
+            "name": "Test New Oil",
+            "new_name": "Test Renamed Oil"
+        }
+        
+        response = self.make_request("PUT", "/owner/edit-loose-oil", edit_oil_data, self.owner_token)
+        if response["success"]:
+            self.log_result(
+                "Edit Loose Oil Name",
+                True,
+                "Successfully renamed loose oil"
+            )
+        else:
+            self.log_result("Edit Loose Oil Name", False, f"Failed: {response['data']}", response)
+
+        # Test 5: Try to edit non-existent loose oil
+        non_existent_edit = {
+            "name": "NonExistentOil123",
+            "new_name": "Should Fail"
+        }
+        
+        response = self.make_request("PUT", "/owner/edit-loose-oil", non_existent_edit, self.owner_token)
+        if not response["success"] and response["status_code"] == 404:
+            self.log_result(
+                "Edit Non-Existent Loose Oil",
+                True,
+                "Correctly returned 404 for non-existent oil"
+            )
+        else:
+            self.log_result("Edit Non-Existent Loose Oil", False, "Should have returned 404", response)
+
+        # Test 6: Test RBAC for editing - Manager should get 403
+        response = self.make_request("PUT", "/owner/edit-loose-oil", edit_oil_data, self.manager_token)
+        if not response["success"] and response["status_code"] == 403:
+            self.log_result(
+                "Edit Loose Oil RBAC",
+                True,
+                "Correctly denied manager access (403)"
+            )
+        else:
+            self.log_result("Edit Loose Oil RBAC", False, "Manager was allowed access", response)
+
+        # Test 7: Create a recipe to test deletion prevention
+        recipe_data = {
+            "loose_oil_name": "Test Renamed Oil",
+            "ingredients": [
+                {"raw_material_name": "Seiko", "percentage": 100.0}
+            ]
+        }
+        
+        response = self.make_request("POST", "/owner/set-recipe", recipe_data, self.owner_token)
+        if response["success"]:
+            
+            # Test 8: Try to delete loose oil with recipe (should fail)
+            response = self.make_request("DELETE", "/owner/delete-loose-oil/Test Renamed Oil", None, self.owner_token)
+            if not response["success"] and "has a recipe" in str(response["data"]):
+                self.log_result(
+                    "Delete Loose Oil (Has Recipe)",
+                    True,
+                    "Correctly prevented deletion of oil with recipe"
+                )
+            else:
+                self.log_result("Delete Loose Oil (Has Recipe)", False, "Should have prevented deletion", response)
+
+        # Test 9: Create a finished product using the oil to test deletion prevention
+        product_data = {
+            "name": "Test Product For Oil Deletion",
+            "pack_size": "1L",
+            "linked_loose_oil": "Test Renamed Oil",
+            "linked_packing_material": "Thriller Pack 1L"  # Should exist
+        }
+        
+        response = self.make_request("POST", "/owner/add-finished-product", product_data, self.owner_token)
+        if response["success"] or "already exists" in str(response["data"]):
+            
+            # Test 10: Try to delete loose oil used in finished product (should still fail due to recipe)
+            response = self.make_request("DELETE", "/owner/delete-loose-oil/Test Renamed Oil", None, self.owner_token)
+            if not response["success"] and ("has a recipe" in str(response["data"]) or "used by product" in str(response["data"])):
+                self.log_result(
+                    "Delete Loose Oil (Used in Product)",
+                    True,
+                    "Correctly prevented deletion of oil used in product/recipe"
+                )
+            else:
+                self.log_result("Delete Loose Oil (Used in Product)", False, "Should have prevented deletion", response)
+
+        # Test 11: Create a deletable loose oil (no recipe, no products)
+        deletable_oil = {
+            "name": "Deletable Test Oil"
+        }
+        
+        response = self.make_request("POST", "/owner/add-loose-oil", deletable_oil, self.owner_token)
+        if response["success"] or "already exists" in str(response["data"]):
+            
+            # Test 12: Successfully delete unused loose oil
+            response = self.make_request("DELETE", "/owner/delete-loose-oil/Deletable Test Oil", None, self.owner_token)
+            if response["success"]:
+                self.log_result(
+                    "Delete Unused Loose Oil",
+                    True,
+                    "Successfully deleted unused loose oil"
+                )
+            else:
+                self.log_result("Delete Unused Loose Oil", False, f"Failed: {response['data']}", response)
+
+        # Test 13: Try to delete non-existent loose oil
+        response = self.make_request("DELETE", "/owner/delete-loose-oil/NonExistentOil123", None, self.owner_token)
+        if not response["success"] and response["status_code"] == 404:
+            self.log_result(
+                "Delete Non-Existent Loose Oil",
+                True,
+                "Correctly returned 404 for non-existent oil"
+            )
+        else:
+            self.log_result("Delete Non-Existent Loose Oil", False, "Should have returned 404", response)
+
+        # Test 14: Test RBAC for deletion - Manager should get 403
+        response = self.make_request("DELETE", "/owner/delete-loose-oil/SomeOil", None, self.manager_token)
+        if not response["success"] and response["status_code"] == 403:
+            self.log_result(
+                "Delete Loose Oil RBAC",
+                True,
+                "Correctly denied manager access to delete endpoint (403)"
+            )
+        else:
+            self.log_result("Delete Loose Oil RBAC", False, "Manager was allowed access", response)
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         print("🚀 Starting Automotive Lubricant Stock Management Backend API Tests")

@@ -116,6 +116,11 @@ export const deleteLooseOil = async (name: string) => {
   return response.data;
 };
 
+export const deleteFinishedProduct = async (name: string, pack_size: string) => {
+  const response = await api.delete(`/owner/delete-finished-product?name=${encodeURIComponent(name)}&pack_size=${encodeURIComponent(pack_size)}`);
+  return response.data;
+};
+
 export const addFinishedProduct = async (
   name: string,
   pack_size: string,

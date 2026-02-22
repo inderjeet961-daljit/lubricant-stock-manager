@@ -1769,3 +1769,149 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+# ==================== WEEKLY REPORTS ====================
+
+@api_router.get("/owner/weekly-report")
+async def get_weekly_report(current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can view reports")
+    
+    try:
+        from datetime import timedelta
+        
+        # Get transactions from the last 7 days
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        
+        transactions = await db.transactions.find({
+            "timestamp": {"$gte": seven_days_ago}
+        }).sort("timestamp", -1).to_list(1000)
+        
+        # Group transactions by date and type
+        report = {
+            "period": {
+                "start": seven_days_ago.isoformat(),
+                "end": datetime.utcnow().isoformat()
+            },
+            "summary": {
+                "total_transactions": len(transactions),
+                "by_type": {},
+                "by_user": {},
+                "by_date": {}
+            },
+            "transactions": []
+        }
+        
+        for txn in transactions:
+            txn_type = txn.get("type", "unknown")
+            user_name = txn.get("user_name", "Unknown")
+            date_str = txn.get("timestamp").strftime("%Y-%m-%d") if txn.get("timestamp") else "Unknown"
+            
+            # Count by type
+            if txn_type not in report["summary"]["by_type"]:
+                report["summary"]["by_type"][txn_type] = 0
+            report["summary"]["by_type"][txn_type] += 1
+            
+            # Count by user
+            if user_name not in report["summary"]["by_user"]:
+                report["summary"]["by_user"][user_name] = 0
+            report["summary"]["by_user"][user_name] += 1
+            
+            # Count by date
+            if date_str not in report["summary"]["by_date"]:
+                report["summary"]["by_date"][date_str] = 0
+            report["summary"]["by_date"][date_str] += 1
+            
+            # Format transaction for display
+            report["transactions"].append({
+                "id": txn.get("id"),
+                "type": txn_type,
+                "type_label": get_transaction_label(txn_type),
+                "user": user_name,
+                "timestamp": txn.get("timestamp").isoformat() if txn.get("timestamp") else None,
+                "date": date_str,
+                "time": txn.get("timestamp").strftime("%H:%M") if txn.get("timestamp") else "Unknown",
+                "data": txn.get("data", {})
+            })
+        
+        return report
+    except Exception as e:
+        logger.error(f"Error generating weekly report: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
+def get_transaction_label(txn_type: str) -> str:
+    """Convert transaction type to human-readable label"""
+    labels = {
+        "add_raw_material_stock": "Added Raw Material Stock",
+        "add_packing_material_stock": "Added Packing Stock",
+        "manufacture_loose_oil": "Manufactured Loose Oil",
+        "pack_finished_goods": "Packed Finished Goods",
+        "take_stock_in_car": "Took Stock in Car",
+        "sale_car": "Sale from Car",
+        "sale_transport": "Sale via Transport",
+        "sale_direct": "Direct Dispatch Sale",
+        "return_to_factory": "Return to Factory",
+        "approve_return_drain": "Approved Return (Drain)",
+        "approve_return_scrap": "Approved Return (Scrap)",
+        "mark_damaged_packing": "Marked Damaged Packing",
+        "edit_stock": "Manual Stock Edit",
+        "reset_all_stock": "Reset All Stock",
+        "add_raw_material": "Added New Raw Material",
+        "edit_raw_material": "Edited Raw Material",
+        "delete_raw_material": "Deleted Raw Material",
+        "add_packing_material": "Added New Packing Material",
+        "edit_packing_material": "Edited Packing Material",
+        "delete_packing_material": "Deleted Packing Material",
+        "add_loose_oil": "Added New Loose Oil",
+        "edit_loose_oil": "Edited Loose Oil",
+        "delete_loose_oil": "Deleted Loose Oil",
+        "add_finished_product": "Added New Finished Product",
+        "delete_finished_product": "Deleted Finished Product",
+        "set_recipe": "Set/Updated Recipe",
+    }
+    return labels.get(txn_type, txn_type.replace("_", " ").title())
+
+
+@api_router.get("/owner/daily-report/{date}")
+async def get_daily_report(date: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can view reports")
+    
+    try:
+        # Parse the date
+        report_date = datetime.strptime(date, "%Y-%m-%d")
+        next_day = report_date + timedelta(days=1)
+        
+        transactions = await db.transactions.find({
+            "timestamp": {
+                "$gte": report_date,
+                "$lt": next_day
+            }
+        }).sort("timestamp", -1).to_list(500)
+        
+        # Group by user for accountability
+        by_user = {}
+        for txn in transactions:
+            user = txn.get("user_name", "Unknown")
+            if user not in by_user:
+                by_user[user] = []
+            by_user[user].append({
+                "id": txn.get("id"),
+                "type": txn.get("type"),
+                "type_label": get_transaction_label(txn.get("type", "")),
+                "time": txn.get("timestamp").strftime("%H:%M") if txn.get("timestamp") else "Unknown",
+                "data": txn.get("data", {})
+            })
+        
+        return {
+            "date": date,
+            "total_transactions": len(transactions),
+            "by_user": by_user
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"Error generating daily report: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")

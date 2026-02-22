@@ -167,8 +167,8 @@ export const manufactureLooseOil = async (loose_oil_name: string, quantity_litre
   return response.data;
 };
 
-export const packFinishedGoods = async (product_name: string, quantity: number) => {
-  const response = await api.post('/manager/pack-finished-goods', { product_name, quantity });
+export const packFinishedGoods = async (product_name: string, pack_size: string, quantity: number) => {
+  const response = await api.post('/manager/pack-finished-goods', { product_name, pack_size, quantity });
   return response.data;
 };
 

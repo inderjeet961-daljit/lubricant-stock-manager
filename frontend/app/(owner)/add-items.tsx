@@ -233,6 +233,8 @@ export default function AddItemsScreen() {
                 await deletePackingMaterial(item.name);
               } else if (type === 'loose') {
                 await deleteLooseOil(item.name);
+              } else if (type === 'finished') {
+                await deleteFinishedProduct(item.name, item.pack_size);
               }
               Alert.alert('Success', `"${item.name}" deleted successfully`);
               loadData();

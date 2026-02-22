@@ -222,3 +222,8 @@ export const resetAllStock = async () => {
 };
 
 export default api;
+
+export const addPackingMaterialStock = async (packing_material_name: string, quantity: number) => {
+  const response = await api.post('/manager/add-packing-material-stock', { packing_material_name, quantity });
+  return response.data;
+};

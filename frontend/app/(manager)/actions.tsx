@@ -118,9 +118,9 @@ export default function ManagerActionsScreen() {
         await manufactureLooseOil(selectedItem, qty);
         showAlert('Success', `Manufactured ${qty}L of ${selectedItem}`);
       } else if (currentAction === 'pack') {
-        const productName = selectedItem.split('|')[0];
-        await packFinishedGoods(productName, parseInt(String(qty)));
-        showAlert('Success', `Packed ${parseInt(String(qty))} units of ${productName}`);
+        const [productName, packSize] = selectedItem.split('|');
+        await packFinishedGoods(productName, packSize, parseInt(String(qty)));
+        showAlert('Success', `Packed ${parseInt(String(qty))} units of ${productName} (${packSize})`);
       } else if (currentAction === 'damaged') {
         await markDamagedPacking(selectedItem, parseInt(String(qty)), reason);
         showAlert('Success', `Marked ${parseInt(String(qty))} units as damaged`);

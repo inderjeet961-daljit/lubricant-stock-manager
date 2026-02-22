@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   Picker,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -24,9 +26,19 @@ import {
   markDamagedPacking,
 } from '../../services/api';
 
+// Web-compatible alert function
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 export default function ManagerActionsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   const [rawMaterials, setRawMaterials] = useState([]);
   const [looseOils, setLooseOils] = useState([]);
@@ -69,7 +81,8 @@ export default function ManagerActionsScreen() {
     } else if (action === 'manufacture') {
       setSelectedItem(looseOils[0]?.name || '');
     } else if (action === 'pack') {
-      setSelectedItem(finishedProducts[0]?.name || '');
+      const firstProduct = finishedProducts[0];
+      setSelectedItem(firstProduct ? `${firstProduct.name}|${firstProduct.pack_size}` : '');
     } else if (action === 'damaged') {
       setSelectedItem(packingMaterials[0]?.name || '');
     }
@@ -83,32 +96,39 @@ export default function ManagerActionsScreen() {
   };
 
   const handleAction = async () => {
-    if (!selectedItem || !quantity || isNaN(quantity) || parseFloat(quantity) <= 0) {
-      Alert.alert('Error', 'Please enter a valid quantity');
+    if (!selectedItem || !quantity || isNaN(Number(quantity)) || parseFloat(quantity) <= 0) {
+      showAlert('Error', 'Please enter a valid quantity greater than 0');
       return;
     }
 
+    setLoading(true);
     try {
       const qty = parseFloat(quantity);
       
       if (currentAction === 'add_raw') {
         await addRawMaterialStock(selectedItem, qty);
-        Alert.alert('Success', `Added ${qty} to ${selectedItem}`);
+        showAlert('Success', `Added ${qty} to ${selectedItem}`);
       } else if (currentAction === 'manufacture') {
-        const result = await manufactureLooseOil(selectedItem, qty);
-        Alert.alert('Success', `Manufactured ${qty}L of ${selectedItem}`);
+        await manufactureLooseOil(selectedItem, qty);
+        showAlert('Success', `Manufactured ${qty}L of ${selectedItem}`);
       } else if (currentAction === 'pack') {
-        await packFinishedGoods(selectedItem, parseInt(qty));
-        Alert.alert('Success', `Packed ${parseInt(qty)} units of ${selectedItem}`);
+        // Extract product name from the combined value
+        const productName = selectedItem.split('|')[0];
+        await packFinishedGoods(productName, parseInt(String(qty)));
+        showAlert('Success', `Packed ${parseInt(String(qty))} units of ${productName}`);
       } else if (currentAction === 'damaged') {
-        await markDamagedPacking(selectedItem, parseInt(qty), reason);
-        Alert.alert('Success', `Marked ${parseInt(qty)} units as damaged`);
+        await markDamagedPacking(selectedItem, parseInt(String(qty)), reason);
+        showAlert('Success', `Marked ${parseInt(String(qty))} units as damaged`);
       }
       
       closeModal();
       loadData();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.detail || 'Action failed');
+    } catch (error: any) {
+      console.error('Action error:', error);
+      const errorMessage = error.response?.data?.detail || 'Action failed. Please try again.';
+      showAlert('Error', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -159,6 +179,15 @@ export default function ManagerActionsScreen() {
             <Text style={styles.actionDescription}>Record damaged bottles</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Help Section */}
+        <View style={styles.helpSection}>
+          <Text style={styles.helpTitle}>How Manufacturing Works:</Text>
+          <Text style={styles.helpText}>1. First, add raw materials using "Add Raw Material"</Text>
+          <Text style={styles.helpText}>2. Owner must set a recipe for the loose oil</Text>
+          <Text style={styles.helpText}>3. Then manufacture - raw materials are auto-deducted</Text>
+          <Text style={styles.helpText}>4. Pack finished goods using loose oil + packing</Text>
+        </View>
       </ScrollView>
 
       {/* Action Modal */}
@@ -197,28 +226,30 @@ export default function ManagerActionsScreen() {
                 >
                   {currentAction === 'add_raw' &&
                     rawMaterials.map((mat) => (
-                      <Picker.Item key={mat.id} label={mat.name} value={mat.name} />
+                      <Picker.Item key={mat.id} label={`${mat.name} (Stock: ${mat.stock || 0} ${mat.unit})`} value={mat.name} />
                     ))}
                   {currentAction === 'manufacture' &&
                     looseOils.map((oil) => (
-                      <Picker.Item key={oil.id} label={oil.name} value={oil.name} />
+                      <Picker.Item key={oil.id} label={`${oil.name} (Stock: ${oil.stock_litres || 0}L)`} value={oil.name} />
                     ))}
                   {currentAction === 'pack' &&
                     finishedProducts.map((product) => (
                       <Picker.Item
                         key={product.id}
-                        label={`${product.name} (${product.pack_size})`}
-                        value={product.name}
+                        label={`${product.name} (${product.pack_size}) - Factory: ${product.factory_stock || 0}`}
+                        value={`${product.name}|${product.pack_size}`}
                       />
                     ))}
                   {currentAction === 'damaged' &&
                     packingMaterials.map((pack) => (
-                      <Picker.Item key={pack.id} label={pack.name} value={pack.name} />
+                      <Picker.Item key={pack.id} label={`${pack.name} (Stock: ${pack.stock || 0})`} value={pack.name} />
                     ))}
                 </Picker>
               </View>
 
-              <Text style={styles.label}>Quantity</Text>
+              <Text style={styles.label}>
+                Quantity {currentAction === 'manufacture' ? '(Litres)' : currentAction === 'add_raw' ? '(Units)' : '(Pieces)'}
+              </Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter quantity"
@@ -246,8 +277,16 @@ export default function ManagerActionsScreen() {
                 </>
               )}
 
-              <TouchableOpacity style={styles.submitButton} onPress={handleAction}>
-                <Text style={styles.submitButtonText}>Confirm</Text>
+              <TouchableOpacity 
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                onPress={handleAction}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Confirm</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -301,6 +340,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 4,
     opacity: 0.9,
+  },
+  helpSection: {
+    backgroundColor: '#FFF9E6',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  helpTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F57C00',
+    marginBottom: 8,
+  },
+  helpText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
   },
   modalOverlay: {
     flex: 1,
@@ -361,6 +419,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 24,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#999',
   },
   submitButtonText: {
     color: '#fff',

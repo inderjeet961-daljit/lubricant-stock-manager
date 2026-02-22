@@ -883,7 +883,7 @@ async def take_stock_in_car(data: TakeStockInCarRequest, current_user: User = De
     new_car_stock = product["car_stock"] + data.quantity
     
     await db.finished_products.update_one(
-        {"name": data.product_name},
+            {"name": data.product_name, "pack_size": data.pack_size},
         {"$set": {
             "factory_stock": new_factory_stock,
             "car_stock": new_car_stock
@@ -926,7 +926,7 @@ async def record_sale(data: RecordSaleRequest, current_user: User = Depends(get_
             )
         new_car_stock = product["car_stock"] - data.quantity
         await db.finished_products.update_one(
-            {"name": data.product_name},
+            {"name": data.product_name, "pack_size": data.pack_size},
             {"$set": {"car_stock": new_car_stock}}
         )
     else:  # transport or direct_dispatch
@@ -988,7 +988,7 @@ async def return_to_factory(data: ReturnToFactoryRequest, current_user: User = D
     # Decrease car stock immediately
     new_car_stock = product["car_stock"] - data.quantity
     await db.finished_products.update_one(
-        {"name": data.product_name},
+            {"name": data.product_name, "pack_size": data.pack_size},
         {"$set": {"car_stock": new_car_stock}}
     )
     

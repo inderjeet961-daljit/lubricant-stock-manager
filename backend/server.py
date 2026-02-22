@@ -201,6 +201,7 @@ class ManufactureRequest(BaseModel):
 
 class PackFinishedGoodsRequest(BaseModel):
     product_name: str
+    pack_size: str
     quantity: int
 
 
@@ -863,7 +864,7 @@ async def take_stock_in_car(data: TakeStockInCarRequest, current_user: User = De
         raise HTTPException(status_code=403, detail="Only owner can take stock in car")
     
     # Get product
-    product = await db.finished_products.find_one({"name": data.product_name})
+    product = await db.finished_products.find_one({"name": data.product_name, "pack_size": data.pack_size})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -909,7 +910,7 @@ async def record_sale(data: RecordSaleRequest, current_user: User = Depends(get_
         raise HTTPException(status_code=403, detail="Only owner can record sales")
     
     # Get product
-    product = await db.finished_products.find_one({"name": data.product_name})
+    product = await db.finished_products.find_one({"name": data.product_name, "pack_size": data.pack_size})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -961,7 +962,7 @@ async def return_to_factory(data: ReturnToFactoryRequest, current_user: User = D
         raise HTTPException(status_code=403, detail="Only owner can create returns")
     
     # Get product
-    product = await db.finished_products.find_one({"name": data.product_name})
+    product = await db.finished_products.find_one({"name": data.product_name, "pack_size": data.pack_size})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -1150,7 +1151,7 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
     
     try:
         # Get product
-        product = await db.finished_products.find_one({"name": data.product_name})
+        product = await db.finished_products.find_one({"name": data.product_name, "pack_size": data.pack_size})
         if not product:
             raise HTTPException(status_code=404, detail=f"Product '{data.product_name}' not found")
         

@@ -207,17 +207,20 @@ class PackFinishedGoodsRequest(BaseModel):
 
 class TakeStockInCarRequest(BaseModel):
     product_name: str
+    pack_size: str
     quantity: int
 
 
 class RecordSaleRequest(BaseModel):
     product_name: str
+    pack_size: str
     quantity: int
     sale_type: Literal["car", "transport", "direct_dispatch"]
 
 
 class ReturnToFactoryRequest(BaseModel):
     product_name: str
+    pack_size: str
     quantity: int
 
 

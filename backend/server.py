@@ -761,6 +761,46 @@ async def add_finished_product(data: AddFinishedProductRequest, current_user: Us
         raise HTTPException(status_code=500, detail=f"Failed to add finished product: {str(e)}")
 
 
+@api_router.delete("/owner/delete-finished-product")
+async def delete_finished_product(name: str, pack_size: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can delete finished products")
+    
+    try:
+        product = await db.finished_products.find_one({"name": name, "pack_size": pack_size})
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Finished product '{name}' ({pack_size}) not found")
+        
+        # Check if there are pending returns for this product
+        pending_return = await db.pending_returns.find_one({"product_name": name, "status": "pending"})
+        if pending_return:
+            raise HTTPException(status_code=400, detail=f"Cannot delete '{name}' - there are pending returns. Approve them first.")
+        
+        await db.finished_products.delete_one({"name": name, "pack_size": pack_size})
+        
+        transaction = Transaction(
+            type="delete_finished_product",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={
+                "deleted_name": name,
+                "deleted_pack_size": pack_size,
+                "deleted_factory_stock": product.get("factory_stock"),
+                "deleted_car_stock": product.get("car_stock")
+            },
+            can_undo=False
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Finished product '{name}' ({pack_size}) deleted by {current_user.name}")
+        return {"message": f"Finished product '{name}' ({pack_size}) deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting finished product: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete finished product: {str(e)}")
+
+
 @api_router.post("/owner/set-recipe")
 async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "owner":

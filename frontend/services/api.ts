@@ -227,3 +227,13 @@ export const addPackingMaterialStock = async (packing_material_name: string, qua
   const response = await api.post('/manager/add-packing-material-stock', { packing_material_name, quantity });
   return response.data;
 };
+
+export const getWeeklyReport = async () => {
+  const response = await api.get('/owner/weekly-report');
+  return response.data;
+};
+
+export const getDailyReport = async (date: string) => {
+  const response = await api.get(`/owner/daily-report/${date}`);
+  return response.data;
+};

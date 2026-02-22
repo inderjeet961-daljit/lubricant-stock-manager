@@ -252,6 +252,7 @@ export default function AddItemsScreen() {
     if (listType === 'raw') return rawMaterials;
     if (listType === 'packing') return packingMaterials;
     if (listType === 'loose') return looseOils;
+    if (listType === 'finished') return finishedProducts;
     return [];
   };
 
@@ -259,6 +260,7 @@ export default function AddItemsScreen() {
     if (listType === 'raw') return 'Raw Materials';
     if (listType === 'packing') return 'Packing Materials';
     if (listType === 'loose') return 'Loose Oils';
+    if (listType === 'finished') return 'Finished Products';
     return 'Items';
   };
 

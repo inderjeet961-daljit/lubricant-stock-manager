@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,12 +10,11 @@ import { resetAllStock } from '../../services/api';
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const handleLogout = async () => {
     try {
       await logout();
-      // Force complete page reload to clear all state
       if (typeof window !== 'undefined') {
         window.location.href = '/';
       } else {
@@ -23,33 +22,54 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Logout error:', error);
-      // Force reload anyway
       if (typeof window !== 'undefined') {
         window.location.href = '/';
       }
     }
   };
 
-  const handleResetStock = () => {
-    Alert.alert(
-      '⚠️ Reset All Stock',
-      'This will set ALL stock quantities to ZERO for:\n\n• Finished Goods (Factory & Car)\n• Loose Oils\n• Raw Materials\n• Packing Materials\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Reset Everything',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await resetAllStock();
-              Alert.alert('Success', 'All stock has been reset to zero');
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.detail || 'Failed to reset stock');
-            }
-          },
-        },
-      ]
-    );
+  const handleResetStock = async () => {
+    // Use window.confirm for web since Alert.alert doesn't work well on web
+    const confirmMessage = 'This will set ALL stock quantities to ZERO.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?';
+    
+    let confirmed = false;
+    
+    if (Platform.OS === 'web') {
+      confirmed = window.confirm(confirmMessage);
+    } else {
+      // For native, use Alert.alert with a promise wrapper
+      confirmed = await new Promise((resolve) => {
+        Alert.alert(
+          '⚠️ Reset All Stock',
+          confirmMessage,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Yes, Reset Everything', style: 'destructive', onPress: () => resolve(true) },
+          ]
+        );
+      });
+    }
+
+    if (confirmed) {
+      setResetting(true);
+      try {
+        await resetAllStock();
+        if (Platform.OS === 'web') {
+          window.alert('Success! All stock has been reset to zero.');
+        } else {
+          Alert.alert('Success', 'All stock has been reset to zero');
+        }
+      } catch (error: any) {
+        const errorMsg = error.response?.data?.detail || 'Failed to reset stock';
+        if (Platform.OS === 'web') {
+          window.alert('Error: ' + errorMsg);
+        } else {
+          Alert.alert('Error', errorMsg);
+        }
+      } finally {
+        setResetting(false);
+      }
+    }
   };
 
   const handleEditStock = () => {
@@ -78,7 +98,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Admin Actions */}
         <View style={styles.adminSection}>
           <Text style={styles.sectionTitle}>Admin Actions</Text>
           
@@ -91,13 +110,19 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.adminButton, styles.dangerButton]} onPress={handleResetStock}>
-            <Ionicons name="trash-outline" size={24} color="#FF3B30" />
+          <TouchableOpacity 
+            style={[styles.adminButton, styles.dangerButton, resetting && styles.disabledButton]} 
+            onPress={handleResetStock}
+            disabled={resetting}
+          >
+            <Ionicons name="trash-outline" size={24} color={resetting ? "#999" : "#FF3B30"} />
             <View style={styles.adminButtonContent}>
-              <Text style={[styles.adminButtonText, styles.dangerText]}>Reset All Stock to Zero</Text>
+              <Text style={[styles.adminButtonText, styles.dangerText, resetting && styles.disabledText]}>
+                {resetting ? 'Resetting...' : 'Reset All Stock to Zero'}
+              </Text>
               <Text style={styles.adminButtonSubtext}>⚠️ This cannot be undone</Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#FF3B30" />
+            <Ionicons name="chevron-forward" size={24} color={resetting ? "#999" : "#FF3B30"} />
           </TouchableOpacity>
         </View>
 
@@ -159,37 +184,33 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   roleBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E3F2FD',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   roleText: {
-    fontSize: 14,
+    color: '#007AFF',
     fontWeight: '600',
-    color: '#fff',
+    fontSize: 14,
   },
   adminSection: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#1a1a1a',
     marginBottom: 12,
+    marginLeft: 4,
   },
   adminButton: {
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-  },
-  dangerButton: {
-    borderWidth: 1,
-    borderColor: '#FF3B30',
   },
   adminButtonContent: {
     flex: 1,
@@ -199,24 +220,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 2,
+  },
+  adminButtonSubtext: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 2,
+  },
+  dangerButton: {
+    borderWidth: 1,
+    borderColor: '#FFE5E5',
   },
   dangerText: {
     color: '#FF3B30',
   },
-  adminButtonSubtext: {
-    fontSize: 12,
-    color: '#8E8E93',
+  disabledButton: {
+    opacity: 0.6,
+  },
+  disabledText: {
+    color: '#999',
   },
   logoutButton: {
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 16,
+    padding: 16,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FF3B30',
+    marginBottom: 32,
   },
   logoutText: {
     fontSize: 16,

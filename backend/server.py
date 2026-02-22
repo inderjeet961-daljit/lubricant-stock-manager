@@ -1148,84 +1148,122 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
     if current_user.role != "manager":
         raise HTTPException(status_code=403, detail="Only manager can pack finished goods")
     
-    # Get product
-    product = await db.finished_products.find_one({"name": data.product_name})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    # Get loose oil
-    loose_oil = await db.loose_oils.find_one({"name": product["linked_loose_oil"]})
-    if not loose_oil:
-        raise HTTPException(status_code=400, detail=f"Loose oil '{product['linked_loose_oil']}' not found")
-    
-    # Get packing material
-    packing = await db.packing_materials.find_one({"name": product["linked_packing_material"]})
-    if not packing:
-        raise HTTPException(status_code=400, detail=f"Packing material '{product['linked_packing_material']}' not found")
-    
-    # Calculate required loose oil (assuming pack_size is like "1L", "3.5L", etc.)
     try:
-        pack_size_litres = float(product["pack_size"].replace("L", ""))
-    except:
-        raise HTTPException(status_code=400, detail=f"Invalid pack size format: {product['pack_size']}")
-    
-    required_oil = pack_size_litres * data.quantity
-    
-    # Check stocks
-    if loose_oil["stock_litres"] < required_oil:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient loose oil. Need {required_oil}L, have {loose_oil['stock_litres']}L"
+        # Get product
+        product = await db.finished_products.find_one({"name": data.product_name})
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product '{data.product_name}' not found")
+        
+        # Get loose oil
+        loose_oil = await db.loose_oils.find_one({"name": product["linked_loose_oil"]})
+        if not loose_oil:
+            raise HTTPException(status_code=400, detail=f"Loose oil '{product['linked_loose_oil']}' not found")
+        
+        # Get packing material
+        packing = await db.packing_materials.find_one({"name": product["linked_packing_material"]})
+        if not packing:
+            raise HTTPException(status_code=400, detail=f"Packing material '{product['linked_packing_material']}' not found")
+        
+        # Parse pack size to litres - handles "1L", "1.5L", "900ml", "800ml", etc.
+        pack_size_str = product["pack_size"].strip().lower().replace(" ", "")
+        pack_size_litres = 0.0
+        
+        # Try ml format first (e.g., "900ml", "800ml")
+        import re
+        ml_match = re.match(r'^(\d+(?:\.\d+)?)\s*ml$', pack_size_str)
+        if ml_match:
+            pack_size_litres = float(ml_match.group(1)) / 1000.0
+        else:
+            # Try L format (e.g., "1L", "1.5L")
+            l_match = re.match(r'^(\d+(?:\.\d+)?)\s*l$', pack_size_str)
+            if l_match:
+                pack_size_litres = float(l_match.group(1))
+            else:
+                # Try just a number (assume litres)
+                num_match = re.match(r'^(\d+(?:\.\d+)?)$', pack_size_str)
+                if num_match:
+                    pack_size_litres = float(num_match.group(1))
+                else:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Invalid pack size format: '{product['pack_size']}'. Use formats like '1L', '900ml', '1.5L', etc."
+                    )
+        
+        required_oil = pack_size_litres * data.quantity
+        
+        # Check stocks
+        current_oil_stock = loose_oil.get("stock_litres", 0)
+        current_packing_stock = packing.get("stock", 0)
+        
+        if current_oil_stock < required_oil:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient loose oil '{product['linked_loose_oil']}'. Need {required_oil:.2f}L ({data.quantity} units x {pack_size_litres}L each), have {current_oil_stock:.2f}L"
+            )
+        
+        if current_packing_stock < data.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient packing '{product['linked_packing_material']}'. Need {data.quantity} bottles, have {current_packing_stock}"
+            )
+        
+        # Deduct loose oil and packing
+        new_oil_stock = current_oil_stock - required_oil
+        new_packing_stock = current_packing_stock - data.quantity
+        
+        await db.loose_oils.update_one(
+            {"name": product["linked_loose_oil"]},
+            {"$set": {"stock_litres": round(new_oil_stock, 2)}}
         )
-    
-    if packing["stock"] < data.quantity:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient packing bottles. Need {data.quantity}, have {packing['stock']}"
+        
+        await db.packing_materials.update_one(
+            {"name": product["linked_packing_material"]},
+            {"$set": {"stock": new_packing_stock}}
         )
-    
-    # Deduct loose oil and packing
-    new_oil_stock = loose_oil["stock_litres"] - required_oil
-    new_packing_stock = packing["stock"] - data.quantity
-    
-    await db.loose_oils.update_one(
-        {"name": product["linked_loose_oil"]},
-        {"$set": {"stock_litres": new_oil_stock}}
-    )
-    
-    await db.packing_materials.update_one(
-        {"name": product["linked_packing_material"]},
-        {"$set": {"stock": new_packing_stock}}
-    )
-    
-    # Add to finished goods factory stock
-    new_factory_stock = product["factory_stock"] + data.quantity
-    await db.finished_products.update_one(
-        {"name": data.product_name},
-        {"$set": {"factory_stock": new_factory_stock}}
-    )
-    
-    # Log transaction
-    transaction = Transaction(
-        type="pack_finished_goods",
-        user_id=current_user.id,
-        user_name=current_user.name,
-        data={
-            "product_name": data.product_name,
-            "quantity": data.quantity,
-            "oil_used": required_oil,
-            "prev_factory_stock": product["factory_stock"],
-            "prev_oil_stock": loose_oil["stock_litres"],
-            "prev_packing_stock": packing["stock"]
+        
+        # Add to finished goods factory stock
+        current_factory_stock = product.get("factory_stock", 0)
+        new_factory_stock = current_factory_stock + data.quantity
+        await db.finished_products.update_one(
+            {"name": data.product_name},
+            {"$set": {"factory_stock": new_factory_stock}}
+        )
+        
+        # Log transaction
+        transaction = Transaction(
+            type="pack_finished_goods",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={
+                "product_name": data.product_name,
+                "pack_size": product["pack_size"],
+                "pack_size_litres": pack_size_litres,
+                "quantity_packed": data.quantity,
+                "oil_used_litres": required_oil,
+                "packing_used": data.quantity,
+                "linked_loose_oil": product["linked_loose_oil"],
+                "linked_packing": product["linked_packing_material"],
+                "prev_factory_stock": current_factory_stock,
+                "prev_oil_stock": current_oil_stock,
+                "prev_packing_stock": current_packing_stock
+            }
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Packed {data.quantity} units of {data.product_name} ({pack_size_litres}L each = {required_oil}L total)")
+        return {
+            "message": f"Successfully packed {data.quantity} units of {data.product_name}",
+            "details": {
+                "oil_used": f"{required_oil:.2f}L ({pack_size_litres}L x {data.quantity})",
+                "packing_used": data.quantity,
+                "new_factory_stock": new_factory_stock
+            }
         }
-    )
-    await db.transactions.insert_one(transaction.dict())
-    
-    return {
-        "message": f"Packed {data.quantity} units of {data.product_name}",
-        "factory_stock": new_factory_stock
-    }
-
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error packing finished goods: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to pack finished goods: {str(e)}")
 
 @api_router.post("/manager/approve-return")
 async def approve_return(data: ApproveReturnRequest, current_user: User = Depends(get_current_user)):

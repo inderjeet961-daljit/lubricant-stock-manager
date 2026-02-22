@@ -27,9 +27,11 @@ import {
   editLooseOil,
   deleteLooseOil,
   addFinishedProduct,
+  deleteFinishedProduct,
   getLooseOils,
   getPackingMaterials,
   getRawMaterials,
+  getFinishedProducts,
 } from '../../services/api';
 
 export default function AddItemsScreen() {

@@ -9,6 +9,8 @@ import {
   TextInput,
   Alert,
   Picker,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -20,11 +22,22 @@ import {
   returnToFactory,
 } from '../../services/api';
 
+// Web-compatible alert function
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 export default function OwnerActionsScreen() {
   const [finishedProducts, setFinishedProducts] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
+  const [loading, setLoading] = useState(false);
   
+  // selectedProduct now stores "name|pack_size"
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
   const [saleType, setSaleType] = useState('car');
@@ -38,7 +51,8 @@ export default function OwnerActionsScreen() {
       const products = await getFinishedProducts();
       setFinishedProducts(products);
       if (products.length > 0) {
-        setSelectedProduct(products[0].name);
+        // Store as "name|pack_size"
+        setSelectedProduct(`${products[0].name}|${products[0].pack_size}`);
       }
     } catch (error) {
       console.error('Error loading products:', error);
@@ -48,6 +62,9 @@ export default function OwnerActionsScreen() {
   const openModal = (action) => {
     setCurrentAction(action);
     setQuantity('');
+    if (finishedProducts.length > 0) {
+      setSelectedProduct(`${finishedProducts[0].name}|${finishedProducts[0].pack_size}`);
+    }
     setModalVisible(true);
   };
 
@@ -58,29 +75,42 @@ export default function OwnerActionsScreen() {
   };
 
   const handleAction = async () => {
-    if (!selectedProduct || !quantity || isNaN(quantity) || parseInt(quantity) <= 0) {
-      Alert.alert('Error', 'Please enter a valid quantity');
+    if (!selectedProduct || !quantity || isNaN(Number(quantity)) || parseInt(quantity) <= 0) {
+      showAlert('Error', 'Please enter a valid quantity');
       return;
     }
 
+    setLoading(true);
     try {
       const qty = parseInt(quantity);
+      const [productName, packSize] = selectedProduct.split('|');
       
       if (currentAction === 'take_stock') {
-        await takeStockInCar(selectedProduct, qty);
-        Alert.alert('Success', `Moved ${qty} units to car`);
+        await takeStockInCar(productName, packSize, qty);
+        showAlert('Success', `Moved ${qty} units of ${productName} (${packSize}) to car`);
       } else if (currentAction === 'record_sale') {
-        await recordSale(selectedProduct, qty, saleType);
-        Alert.alert('Success', `Sale recorded: ${qty} units via ${saleType}`);
+        await recordSale(productName, packSize, qty, saleType);
+        showAlert('Success', `Sale recorded: ${qty} units of ${productName} (${packSize}) via ${saleType}`);
       } else if (currentAction === 'return') {
-        await returnToFactory(selectedProduct, qty);
-        Alert.alert('Success', `Return created: ${qty} units pending approval`);
+        await returnToFactory(productName, packSize, qty);
+        showAlert('Success', `Return created: ${qty} units of ${productName} (${packSize}) pending approval`);
       }
       
       closeModal();
       loadProducts();
-    } catch (error) {
-      Alert.alert('Error', error.response?.data?.detail || 'Action failed');
+    } catch (error: any) {
+      showAlert('Error', error.response?.data?.detail || 'Action failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getModalTitle = () => {
+    switch (currentAction) {
+      case 'take_stock': return 'Take Stock in Car';
+      case 'record_sale': return 'Record Sale';
+      case 'return': return 'Return to Factory';
+      default: return '';
     }
   };
 
@@ -101,16 +131,16 @@ export default function OwnerActionsScreen() {
           >
             <Ionicons name="car" size={32} color="#fff" />
             <Text style={styles.actionTitle}>Take Stock in Car</Text>
-            <Text style={styles.actionDescription}>Move items from factory to car</Text>
+            <Text style={styles.actionDescription}>Move finished goods from factory to car</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionCard, { backgroundColor: '#34C759' }]}
             onPress={() => openModal('record_sale')}
           >
-            <Ionicons name="cart" size={32} color="#fff" />
-            <Text style={styles.actionTitle}>Record Sales</Text>
-            <Text style={styles.actionDescription}>Log sales from car, transport, or dispatch</Text>
+            <Ionicons name="cash" size={32} color="#fff" />
+            <Text style={styles.actionTitle}>Record Sale</Text>
+            <Text style={styles.actionDescription}>Record a sale from car, transport, or direct</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -119,15 +149,8 @@ export default function OwnerActionsScreen() {
           >
             <Ionicons name="return-down-back" size={32} color="#fff" />
             <Text style={styles.actionTitle}>Return to Factory</Text>
-            <Text style={styles.actionDescription}>Send returns for manager approval</Text>
+            <Text style={styles.actionDescription}>Return unsold stock (pending manager approval)</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.infoBox}>
-          <Ionicons name="information-circle" size={20} color="#007AFF" />
-          <Text style={styles.infoText}>
-            All stock movements are logged and can be undone within 24 hours
-          </Text>
         </View>
       </ScrollView>
 
@@ -141,17 +164,13 @@ export default function OwnerActionsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {currentAction === 'take_stock' && 'Take Stock in Car'}
-                {currentAction === 'record_sale' && 'Record Sale'}
-                {currentAction === 'return' && 'Return to Factory'}
-              </Text>
+              <Text style={styles.modalTitle}>{getModalTitle()}</Text>
               <TouchableOpacity onPress={closeModal}>
                 <Ionicons name="close" size={24} color="#8E8E93" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
+            <ScrollView style={styles.modalBody}>
               <Text style={styles.label}>Select Product</Text>
               <View style={styles.pickerContainer}>
                 <Picker
@@ -162,29 +181,12 @@ export default function OwnerActionsScreen() {
                   {finishedProducts.map((product) => (
                     <Picker.Item
                       key={product.id}
-                      label={`${product.name} (${product.pack_size})`}
-                      value={product.name}
+                      label={`${product.name} (${product.pack_size}) - Factory: ${product.factory_stock || 0} | Car: ${product.car_stock || 0}`}
+                      value={`${product.name}|${product.pack_size}`}
                     />
                   ))}
                 </Picker>
               </View>
-
-              {currentAction === 'record_sale' && (
-                <>
-                  <Text style={styles.label}>Sale Type</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={saleType}
-                      onValueChange={setSaleType}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Sold from Car" value="car" />
-                      <Picker.Item label="Sold via Transport" value="transport" />
-                      <Picker.Item label="Direct Factory Dispatch" value="direct_dispatch" />
-                    </Picker>
-                  </View>
-                </>
-              )}
 
               <Text style={styles.label}>Quantity</Text>
               <TextInput
@@ -195,27 +197,35 @@ export default function OwnerActionsScreen() {
                 keyboardType="numeric"
               />
 
-              {selectedProduct && (
-                <View style={styles.stockInfo}>
-                  {finishedProducts
-                    .filter((p) => p.name === selectedProduct)
-                    .map((product) => (
-                      <View key={product.id}>
-                        <Text style={styles.stockInfoText}>
-                          Factory Stock: {product.factory_stock}
-                        </Text>
-                        <Text style={styles.stockInfoText}>
-                          Car Stock: {product.car_stock}
-                        </Text>
-                      </View>
-                    ))}
-                </View>
+              {currentAction === 'record_sale' && (
+                <>
+                  <Text style={styles.label}>Sale Type</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={saleType}
+                      onValueChange={setSaleType}
+                      style={styles.picker}
+                    >
+                      <Picker.Item label="From Car" value="car" />
+                      <Picker.Item label="Transport" value="transport" />
+                      <Picker.Item label="Direct Dispatch" value="direct" />
+                    </Picker>
+                  </View>
+                </>
               )}
 
-              <TouchableOpacity style={styles.submitButton} onPress={handleAction}>
-                <Text style={styles.submitButtonText}>Confirm</Text>
+              <TouchableOpacity 
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                onPress={handleAction}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Confirm</Text>
+                )}
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -267,21 +277,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 4,
     opacity: 0.9,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E3F2FD',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 8,
-  },
-  infoText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 14,
-    color: '#1976D2',
   },
   modalOverlay: {
     flex: 1,
@@ -336,23 +331,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  stockInfo: {
-    backgroundColor: '#f0f8ff',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 16,
-  },
-  stockInfoText: {
-    fontSize: 14,
-    color: '#007AFF',
-    marginBottom: 4,
-  },
   submitButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 24,
+    marginBottom: 24,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#999',
   },
   submitButtonText: {
     color: '#fff',

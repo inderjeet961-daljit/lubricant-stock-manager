@@ -934,7 +934,7 @@ async def record_sale(data: RecordSaleRequest, current_user: User = Depends(get_
             )
         new_factory_stock = product["factory_stock"] - data.quantity
         await db.finished_products.update_one(
-            {"name": data.product_name},
+            {"name": data.product_name, "pack_size": data.pack_size},
             {"$set": {"factory_stock": new_factory_stock}}
         )
     
@@ -1226,7 +1226,7 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
         current_factory_stock = product.get("factory_stock", 0)
         new_factory_stock = current_factory_stock + data.quantity
         await db.finished_products.update_one(
-            {"name": data.product_name},
+            {"name": data.product_name, "pack_size": data.pack_size},
             {"$set": {"factory_stock": new_factory_stock}}
         )
         

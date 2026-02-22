@@ -21,6 +21,7 @@ import {
   getFinishedProducts,
   getPackingMaterials,
   addRawMaterialStock,
+  addPackingMaterialStock,
   manufactureLooseOil,
   packFinishedGoods,
   markDamagedPacking,
@@ -78,6 +79,8 @@ export default function ManagerActionsScreen() {
     
     if (action === 'add_raw') {
       setSelectedItem(rawMaterials[0]?.name || '');
+    } else if (action === 'add_packing') {
+      setSelectedItem(packingMaterials[0]?.name || '');
     } else if (action === 'manufacture') {
       setSelectedItem(looseOils[0]?.name || '');
     } else if (action === 'pack') {
@@ -108,11 +111,13 @@ export default function ManagerActionsScreen() {
       if (currentAction === 'add_raw') {
         await addRawMaterialStock(selectedItem, qty);
         showAlert('Success', `Added ${qty} to ${selectedItem}`);
+      } else if (currentAction === 'add_packing') {
+        await addPackingMaterialStock(selectedItem, parseInt(String(qty)));
+        showAlert('Success', `Added ${parseInt(String(qty))} units of ${selectedItem}`);
       } else if (currentAction === 'manufacture') {
         await manufactureLooseOil(selectedItem, qty);
         showAlert('Success', `Manufactured ${qty}L of ${selectedItem}`);
       } else if (currentAction === 'pack') {
-        // Extract product name from the combined value
         const productName = selectedItem.split('|')[0];
         await packFinishedGoods(productName, parseInt(String(qty)));
         showAlert('Success', `Packed ${parseInt(String(qty))} units of ${productName}`);
@@ -132,6 +137,39 @@ export default function ManagerActionsScreen() {
     }
   };
 
+  const getModalTitle = () => {
+    switch (currentAction) {
+      case 'add_raw': return 'Add Raw Material Stock';
+      case 'add_packing': return 'Add Packing Material Stock';
+      case 'manufacture': return 'Manufacture Loose Oil';
+      case 'pack': return 'Pack Finished Goods';
+      case 'damaged': return 'Mark Damaged Packing';
+      default: return '';
+    }
+  };
+
+  const getPickerLabel = () => {
+    switch (currentAction) {
+      case 'add_raw': return 'Select Raw Material';
+      case 'add_packing': return 'Select Packing Container';
+      case 'manufacture': return 'Select Loose Oil';
+      case 'pack': return 'Select Product';
+      case 'damaged': return 'Select Packing Material';
+      default: return 'Select Item';
+    }
+  };
+
+  const getQuantityLabel = () => {
+    switch (currentAction) {
+      case 'add_raw': return 'Quantity (Units/Litres/Kg)';
+      case 'add_packing': return 'Quantity (Pieces)';
+      case 'manufacture': return 'Quantity (Litres)';
+      case 'pack': return 'Quantity (Pieces)';
+      case 'damaged': return 'Quantity (Pieces)';
+      default: return 'Quantity';
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
@@ -142,51 +180,67 @@ export default function ManagerActionsScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={styles.actionsContainer}>
+        <Text style={styles.sectionTitle}>Stock Management</Text>
+        <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: '#FF9500' }]}
+            style={[styles.smallActionCard, { backgroundColor: '#FF9500' }]}
             onPress={() => openModal('add_raw')}
           >
-            <Ionicons name="add-circle" size={32} color="#fff" />
-            <Text style={styles.actionTitle}>Add Raw Material</Text>
-            <Text style={styles.actionDescription}>Increase raw material stock</Text>
+            <Ionicons name="flask" size={28} color="#fff" />
+            <Text style={styles.smallActionTitle}>Add Raw Material</Text>
+            <Text style={styles.smallActionDesc}>Oils, Additives</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: '#007AFF' }]}
-            onPress={() => openModal('manufacture')}
+            style={[styles.smallActionCard, { backgroundColor: '#5856D6' }]}
+            onPress={() => openModal('add_packing')}
           >
-            <Ionicons name="construct" size={32} color="#fff" />
-            <Text style={styles.actionTitle}>Manufacture Loose Oil</Text>
-            <Text style={styles.actionDescription}>Apply recipes to create oil</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: '#34C759' }]}
-            onPress={() => openModal('pack')}
-          >
-            <Ionicons name="cube" size={32} color="#fff" />
-            <Text style={styles.actionTitle}>Pack Finished Goods</Text>
-            <Text style={styles.actionDescription}>Package loose oil into bottles</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionCard, { backgroundColor: '#FF3B30' }]}
-            onPress={() => openModal('damaged')}
-          >
-            <Ionicons name="trash" size={32} color="#fff" />
-            <Text style={styles.actionTitle}>Mark Damaged Packing</Text>
-            <Text style={styles.actionDescription}>Record damaged bottles</Text>
+            <Ionicons name="cube-outline" size={28} color="#fff" />
+            <Text style={styles.smallActionTitle}>Add Packing</Text>
+            <Text style={styles.smallActionDesc}>Bottles, Containers</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={styles.sectionTitle}>Production</Text>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.smallActionCard, { backgroundColor: '#007AFF' }]}
+            onPress={() => openModal('manufacture')}
+          >
+            <Ionicons name="construct" size={28} color="#fff" />
+            <Text style={styles.smallActionTitle}>Manufacture Oil</Text>
+            <Text style={styles.smallActionDesc}>Uses Recipe</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.smallActionCard, { backgroundColor: '#34C759' }]}
+            onPress={() => openModal('pack')}
+          >
+            <Ionicons name="gift" size={28} color="#fff" />
+            <Text style={styles.smallActionTitle}>Pack Goods</Text>
+            <Text style={styles.smallActionDesc}>Oil + Bottles</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>Quality Control</Text>
+        <TouchableOpacity
+          style={[styles.wideActionCard, { backgroundColor: '#FF3B30' }]}
+          onPress={() => openModal('damaged')}
+        >
+          <Ionicons name="warning" size={28} color="#fff" />
+          <View style={styles.wideActionContent}>
+            <Text style={styles.wideActionTitle}>Mark Damaged Packing</Text>
+            <Text style={styles.wideActionDesc}>Record broken/defective containers</Text>
+          </View>
+        </TouchableOpacity>
         
         {/* Help Section */}
         <View style={styles.helpSection}>
-          <Text style={styles.helpTitle}>How Manufacturing Works:</Text>
-          <Text style={styles.helpText}>1. First, add raw materials using "Add Raw Material"</Text>
-          <Text style={styles.helpText}>2. Owner must set a recipe for the loose oil</Text>
-          <Text style={styles.helpText}>3. Then manufacture - raw materials are auto-deducted</Text>
-          <Text style={styles.helpText}>4. Pack finished goods using loose oil + packing</Text>
+          <Text style={styles.helpTitle}>📋 Workflow Guide:</Text>
+          <Text style={styles.helpText}>1. <Text style={styles.bold}>Add Raw Materials</Text> - Base oils, additives (Lubricating Oil, VI, PPD)</Text>
+          <Text style={styles.helpText}>2. <Text style={styles.bold}>Add Packing</Text> - Bottles & containers (1L, 5L bottles)</Text>
+          <Text style={styles.helpText}>3. <Text style={styles.bold}>Manufacture Oil</Text> - Converts raw materials → loose oil (uses recipe %)</Text>
+          <Text style={styles.helpText}>4. <Text style={styles.bold}>Pack Goods</Text> - Loose oil + bottles → finished product</Text>
         </View>
       </ScrollView>
 
@@ -200,24 +254,14 @@ export default function ManagerActionsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {currentAction === 'add_raw' && 'Add Raw Material Stock'}
-                {currentAction === 'manufacture' && 'Manufacture Loose Oil'}
-                {currentAction === 'pack' && 'Pack Finished Goods'}
-                {currentAction === 'damaged' && 'Mark Damaged Packing'}
-              </Text>
+              <Text style={styles.modalTitle}>{getModalTitle()}</Text>
               <TouchableOpacity onPress={closeModal}>
                 <Ionicons name="close" size={24} color="#8E8E93" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.label}>
-                {currentAction === 'add_raw' && 'Select Raw Material'}
-                {currentAction === 'manufacture' && 'Select Loose Oil'}
-                {currentAction === 'pack' && 'Select Product'}
-                {currentAction === 'damaged' && 'Select Packing Material'}
-              </Text>
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.label}>{getPickerLabel()}</Text>
               <View style={styles.pickerContainer}>
                 <Picker
                   selectedValue={selectedItem}
@@ -227,6 +271,10 @@ export default function ManagerActionsScreen() {
                   {currentAction === 'add_raw' &&
                     rawMaterials.map((mat) => (
                       <Picker.Item key={mat.id} label={`${mat.name} (Stock: ${mat.stock || 0} ${mat.unit})`} value={mat.name} />
+                    ))}
+                  {currentAction === 'add_packing' &&
+                    packingMaterials.map((pack) => (
+                      <Picker.Item key={pack.id} label={`${pack.name} ${pack.size_label ? `(${pack.size_label})` : ''} - Stock: ${pack.stock || 0}`} value={pack.name} />
                     ))}
                   {currentAction === 'manufacture' &&
                     looseOils.map((oil) => (
@@ -247,9 +295,7 @@ export default function ManagerActionsScreen() {
                 </Picker>
               </View>
 
-              <Text style={styles.label}>
-                Quantity {currentAction === 'manufacture' ? '(Litres)' : currentAction === 'add_raw' ? '(Units)' : '(Pieces)'}
-              </Text>
+              <Text style={styles.label}>{getQuantityLabel()}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="Enter quantity"
@@ -269,8 +315,8 @@ export default function ManagerActionsScreen() {
                     >
                       <Picker.Item label="Broken" value="Broken" />
                       <Picker.Item label="Defective" value="Defective" />
-                      <Picker.Item label="Handling" value="Handling" />
-                      <Picker.Item label="Supplier" value="Supplier" />
+                      <Picker.Item label="Handling Error" value="Handling" />
+                      <Picker.Item label="Supplier Defect" value="Supplier" />
                       <Picker.Item label="Other" value="Other" />
                     </Picker>
                   </View>
@@ -288,7 +334,7 @@ export default function ManagerActionsScreen() {
                   <Text style={styles.submitButtonText}>Confirm</Text>
                 )}
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -320,45 +366,84 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  actionsContainer: {
     padding: 16,
   },
-  actionCard: {
-    padding: 24,
-    borderRadius: 16,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 16,
   },
-  actionTitle: {
-    fontSize: 20,
+  smallActionCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  smallActionTitle: {
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#fff',
-    marginTop: 12,
+    marginTop: 8,
+    textAlign: 'center',
   },
-  actionDescription: {
-    fontSize: 14,
+  smallActionDesc: {
+    fontSize: 12,
     color: '#fff',
-    marginTop: 4,
-    opacity: 0.9,
+    opacity: 0.8,
+    marginTop: 2,
+  },
+  wideActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  wideActionContent: {
+    marginLeft: 12,
+  },
+  wideActionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  wideActionDesc: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.8,
+    marginTop: 2,
   },
   helpSection: {
-    backgroundColor: '#FFF9E6',
-    margin: 16,
+    backgroundColor: '#E8F5E9',
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FFE082',
+    borderColor: '#C8E6C9',
+    marginTop: 8,
+    marginBottom: 24,
   },
   helpTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F57C00',
-    marginBottom: 8,
+    color: '#2E7D32',
+    marginBottom: 12,
   },
   helpText: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    color: '#555',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  bold: {
+    fontWeight: '600',
+    color: '#333',
   },
   modalOverlay: {
     flex: 1,
@@ -369,7 +454,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -419,6 +504,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 24,
+    marginBottom: 24,
   },
   submitButtonDisabled: {
     backgroundColor: '#999',

@@ -12,6 +12,7 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -33,6 +34,29 @@ import {
   getRawMaterials,
   getFinishedProducts,
 } from '../../services/api';
+
+// Web-compatible alert function
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
+// Web-compatible confirm function
+const showConfirm = (title: string, message: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (Platform.OS === 'web') {
+      resolve(window.confirm(`${title}\n\n${message}`));
+    } else {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+      ]);
+    }
+  });
+};
 
 export default function AddItemsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
@@ -83,7 +107,7 @@ export default function AddItemsScreen() {
       if (packing.length > 0) setLinkedPackingMaterial(packing[0].name);
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data. Please try again.');
+      showAlert('Error', 'Failed to load data. Please try again.');
     }
   };
 
@@ -99,7 +123,6 @@ export default function AddItemsScreen() {
     setSizeLabel('');
     setPackSize('');
     setUnit('litres');
-    // Ensure linked items are set to first available item when opening modal
     if (type === 'finished') {
       if (looseOils.length > 0) setLinkedLooseOil(looseOils[0].name);
       if (packingMaterials.length > 0) setLinkedPackingMaterial(packingMaterials[0].name);
@@ -144,7 +167,7 @@ export default function AddItemsScreen() {
 
   const handleAddItem = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter a name');
+      showAlert('Error', 'Please enter a name');
       return;
     }
 
@@ -152,27 +175,27 @@ export default function AddItemsScreen() {
     try {
       if (itemType === 'raw') {
         await addRawMaterial(name, unit);
-        Alert.alert('Success', 'Raw material added successfully');
+        showAlert('Success', 'Raw material added successfully');
       } else if (itemType === 'packing') {
         await addPackingMaterial(name, sizeLabel);
-        Alert.alert('Success', 'Packing material added successfully');
+        showAlert('Success', 'Packing material added successfully');
       } else if (itemType === 'loose') {
         await addLooseOil(name);
-        Alert.alert('Success', 'Loose oil added successfully');
+        showAlert('Success', 'Loose oil added successfully');
       } else if (itemType === 'finished') {
         if (!packSize || !linkedLooseOil || !linkedPackingMaterial) {
-          Alert.alert('Error', 'Please fill all fields');
+          showAlert('Error', 'Please fill all fields');
           setLoading(false);
           return;
         }
         await addFinishedProduct(name, packSize, linkedLooseOil, linkedPackingMaterial);
-        Alert.alert('Success', 'Finished product added successfully');
+        showAlert('Success', 'Finished product added successfully');
       }
       closeModal();
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding item:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to add item');
+      showAlert('Error', error.response?.data?.detail || 'Failed to add item');
     } finally {
       setLoading(false);
     }
@@ -180,7 +203,7 @@ export default function AddItemsScreen() {
 
   const handleEditItem = async () => {
     if (!editName.trim()) {
-      Alert.alert('Error', 'Name cannot be empty');
+      showAlert('Error', 'Name cannot be empty');
       return;
     }
 
@@ -204,50 +227,45 @@ export default function AddItemsScreen() {
           editName !== editingItem.name ? editName : undefined
         );
       }
-      Alert.alert('Success', 'Item updated successfully');
+      showAlert('Success', 'Item updated successfully');
       closeEditModal();
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error editing item:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to update item');
+      showAlert('Error', error.response?.data?.detail || 'Failed to update item');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteItem = (item, type) => {
-    Alert.alert(
+  const handleDeleteItem = async (item, type) => {
+    const itemName = type === 'finished' ? `${item.name} (${item.pack_size})` : item.name;
+    const confirmed = await showConfirm(
       'Confirm Delete',
-      `Are you sure you want to delete "${item.name}"?\n\nThis action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            try {
-              if (type === 'raw') {
-                await deleteRawMaterial(item.name);
-              } else if (type === 'packing') {
-                await deletePackingMaterial(item.name);
-              } else if (type === 'loose') {
-                await deleteLooseOil(item.name);
-              } else if (type === 'finished') {
-                await deleteFinishedProduct(item.name, item.pack_size);
-              }
-              Alert.alert('Success', `"${item.name}" deleted successfully`);
-              loadData();
-            } catch (error) {
-              console.error('Error deleting item:', error);
-              Alert.alert('Error', error.response?.data?.detail || 'Failed to delete item');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
+      `Are you sure you want to delete "${itemName}"?\n\nThis action cannot be undone.`
     );
+
+    if (confirmed) {
+      setLoading(true);
+      try {
+        if (type === 'raw') {
+          await deleteRawMaterial(item.name);
+        } else if (type === 'packing') {
+          await deletePackingMaterial(item.name);
+        } else if (type === 'loose') {
+          await deleteLooseOil(item.name);
+        } else if (type === 'finished') {
+          await deleteFinishedProduct(item.name, item.pack_size);
+        }
+        showAlert('Success', `"${itemName}" deleted successfully`);
+        loadData();
+      } catch (error: any) {
+        console.error('Error deleting item:', error);
+        showAlert('Error', error.response?.data?.detail || 'Failed to delete item');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const getListData = () => {
@@ -471,10 +489,10 @@ export default function AddItemsScreen() {
 
               {itemType === 'finished' && (
                 <>
-                  <Text style={styles.label}>Pack Size *</Text>
+                  <Text style={styles.label}>Pack Size * (e.g., 1L, 900ml, 1.5L)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g., 1L, 3.5L, 5L"
+                    placeholder="e.g., 1L, 900ml, 1.5L"
                     value={packSize}
                     onChangeText={setPackSize}
                   />
@@ -709,6 +727,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 24,
+    marginBottom: 24,
   },
   submitButtonDisabled: { backgroundColor: '#8E8E93' },
   submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },

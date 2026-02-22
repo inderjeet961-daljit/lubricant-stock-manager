@@ -61,6 +61,7 @@ export default function AddItemsScreen() {
   const [looseOils, setLooseOils] = useState([]);
   const [packingMaterials, setPackingMaterials] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
+  const [finishedProducts, setFinishedProducts] = useState([]);
 
   useEffect(() => {
     loadData();

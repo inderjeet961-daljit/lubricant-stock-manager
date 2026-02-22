@@ -285,14 +285,22 @@ export default function AddItemsScreen() {
         {listType === 'loose' && (
           <Text style={styles.listItemStock}>Stock: {item.stock_litres || 0} litres</Text>
         )}
+        {listType === 'finished' && (
+          <>
+            <Text style={styles.listItemDetail}>Pack: {item.pack_size} | Oil: {item.linked_loose_oil}</Text>
+            <Text style={styles.listItemStock}>Factory: {item.factory_stock || 0} | Car: {item.car_stock || 0}</Text>
+          </>
+        )}
       </View>
       <View style={styles.listItemActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={() => openEditModal(item, listType)}
-        >
-          <Ionicons name="pencil" size={18} color="#fff" />
-        </TouchableOpacity>
+        {listType !== 'finished' && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.editButton]}
+            onPress={() => openEditModal(item, listType)}
+          >
+            <Ionicons name="pencil" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteItem(item, listType)}

@@ -404,6 +404,19 @@ export default function AddItemsScreen() {
           <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
         </TouchableOpacity>
 
+        <TouchableOpacity style={styles.manageCard} onPress={() => openListModal('finished')}>
+          <View style={styles.manageCardLeft}>
+            <View style={[styles.manageIconBox, { backgroundColor: '#007AFF' }]}>
+              <Ionicons name="cube" size={24} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.manageCardTitle}>Finished Products</Text>
+              <Text style={styles.manageCardCount}>{finishedProducts.length} items</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
+        </TouchableOpacity>
+
         <View style={{ height: 40 }} />
       </ScrollView>
 

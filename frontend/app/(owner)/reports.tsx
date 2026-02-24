@@ -23,6 +23,24 @@ export default function ReportsScreen() {
   const [expandedTxn, setExpandedTxn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Inject print styles for web
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const styleId = 'print-report-styles';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            [data-testid="print-report-btn"] { display: none !important; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     loadWeeklyReport();
   }, []);

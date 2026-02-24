@@ -1898,3 +1898,23 @@ async def get_daily_report(date: str, current_user: User = Depends(get_current_u
     except Exception as e:
         logger.error(f"Error generating daily report: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+
+
+# ==================== APP SETUP (MUST BE AFTER ALL ROUTES) ====================
+
+# Include router
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()

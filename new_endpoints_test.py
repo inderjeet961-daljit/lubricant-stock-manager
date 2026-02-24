@@ -9,7 +9,7 @@ import json
 import sys
 
 # Base configuration
-BASE_URL = "https://oil-inventory-debug.preview.emergentagent.com/api"
+BASE_URL = "https://oil-inventory-app-1.preview.emergentagent.com/api"
 
 class NewEndpointsTest:
     def __init__(self):

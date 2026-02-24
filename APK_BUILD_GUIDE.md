@@ -246,7 +246,7 @@ The app comes with:
 - Phone: [YOUR PHONE]
 
 **Backend Server:**
-- URL: `https://oil-inventory-debug.preview.emergentagent.com`
+- URL: `https://oil-inventory-app-1.preview.emergentagent.com`
 - Status: Check if you can access the URL in browser
 
 ---

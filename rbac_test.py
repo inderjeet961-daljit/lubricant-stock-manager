@@ -6,7 +6,7 @@ Supplementary RBAC and Edge Case Tests for New Endpoints
 import requests
 import json
 
-BASE_URL = "https://oil-inventory-debug.preview.emergentagent.com/api"
+BASE_URL = "https://oil-inventory-app-1.preview.emergentagent.com/api"
 
 def make_request(method: str, endpoint: str, data: dict = None, token: str = None) -> dict:
     """Make HTTP request with proper headers"""

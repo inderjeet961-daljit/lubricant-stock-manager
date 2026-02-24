@@ -2,210 +2,217 @@
 <original_problem_statement>
 Build and deploy a complete Android mobile application for Automotive Lubricant Stock Management.
 
-**PRODUCT REQUIREMENTS:**
-
-**Users &amp; Roles:**
-- **Owner/Sales:** A single unified user who can view a combined dashboard, add new items (raw material, packing, finished goods), set manufacturing recipes, take stock from the factory into their car, record sales, and send returns to the factory (creating a pending return). They cannot directly alter factory stock.
-- **Factory Manager:** Can add raw material stock, manufacture loose oil, pack finished goods, approve incoming returns, mark damaged packing material, and handle leakage. They cannot create new item types.
-
-**Key Features:**
-- **Unified Owner Dashboard:** With a global search bar and sections for Finished Goods (Factory vs. Car), Loose Oil, Raw Materials, and Packing Materials.
-- **Owner Actions:** Take Stock in Car, Record Sales (from Car, Transport, Direct Dispatch), Return to Factory (pending approval).
-- **Scalable Item Creation:** Owner can add new raw materials, packing materials, and finished products with linked components.
-- **Manufacturing Recipes:** Owner sets recipes (must sum to 100%). When the manager manufactures, raw materials are auto-deducted.
-- **Factory Manager Actions:** Add Raw Material, Manufacture Loose Oil, Pack Finished Goods, Approve Returns (Drain &amp; Reuse or Scrap), Mark Damaged Packing.
+**PRODUCT REQUIREMENTS (Initial):**
+- **Users &amp; Roles:** Owner/Sales and Factory Manager with distinct permissions.
+- **Key Features:** Dashboards, stock management (sales, transfers, manufacturing, packing), item and recipe creation, and a return approval workflow.
 - **Data Safety:** Timestamped actions, no negative stock, prevent duplicate item names.
-- **Optional Features:** Low stock alerts, end-of-day summary.
-- **Deployment:** A fully working Android app with two roles and a live cloud database.
+- **Deployment:** A fully working Android app.
+
+**PRODUCT REQUIREMENTS (Evolved during session):**
+- **CRUD for all Items:** The owner should be able to edit and delete all item types (raw materials, packing materials, loose oils, finished goods).
+- **Manager Stock Input:** The manager must be able to add stock for both raw materials and packing materials.
+- **Accurate Packing Logic:** Packing a finished good (e.g., Thrive 900ml) must deduct the correct fractional amount (0.9L) from the corresponding loose oil stock.
+- **Accurate Stock Updates:** All stock operations (packing, sales, transfers) for finished goods must correctly identify items by both **name AND pack size** to prevent overwriting stock of a different size (e.g., updating Thrive 900ml should not affect Thrive 1L).
+- **Accountability via Reporting:** The owner needs a Reports screen to view a log of all transactions from the last 7 days to track activity and reconcile stock.
+- **Intermediate Goods Manufacturing (NEW):** A new workflow is required where some items (e.g., 'VI' and 'VI Super') are manufactured from raw materials, and then this manufactured item becomes a 'raw material' for subsequent blending/manufacturing processes.
+- **Backup/Deployment Guide (NEW):** The user wants a document explaining how to back up the app and data.
 </original_problem_statement>
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack mobile application has been developed using Expo (React Native) for the frontend and FastAPI/MongoDB for the backend. The application features a complete two-role authentication system (Owner/Sales and Factory Manager). All core features from the product requirements have been implemented, including dashboards for both roles, stock management actions (sales, transfers, manufacturing, packing), item and recipe creation, and a return approval workflow. The project code has been successfully pushed to the user's GitHub repository. The user is currently interacting with the app via a web preview link.
+The full-stack application (Expo/FastAPI/MongoDB) has seen significant evolution. Core features like authentication and basic stock operations exist. During this session, full CRUD (Create, Read, Update, Delete) capabilities were added for raw materials, packing materials, loose oils, and finished goods. The manager role was enhanced to allow adding packing material stock. A major bug fix was implemented to ensure packing logic deducts the correct fractional amount of loose oil based on pack size (e.g., 900ml deducts 0.9L). A critical, large-scale refactor was performed on the backend and frontend to use both  and  for all finished good stock operations to prevent data corruption, though this is not fully user-verified. A new Reports tab was added for the owner. However, the application is plagued by usability issues on the web preview, and several new features are buggy or incomplete.
 
 **Last working item**:
-- Last item agent was working: The agent was addressing a critical bug reported by the user where saving a manufacturing recipe (specifically for PSO) fails silently. The user also requested that all save operations throughout the application provide explicit feedback (success or error) to prevent such silent failures in the future. The agent had started to formulate a plan to add robust  blocks on both the frontend and backend.
-- Status: IN PROGRESS
+- Last item agent was working: The agent was acknowledging a multi-part user request before forking. The immediate tasks were to:
+    1.  Fix the newly-created Reports tab which is showing up as empty.
+    2.  Design and implement a new, complex feature for manufacturing intermediate goods ('VI' and 'VI Super') that can then be used as raw materials.
+    3.  Create a backup and deployment guide for the user.
+- Status: NOT STARTED
 - Agent Testing Done: N
 - Which testing method agent to use? both
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- Issue 1: Saving a recipe fails silently, and general lack of feedback on save actions (P0)
+- Issue 1: The new Reports tab is empty (P0)
+- Issue 2: Stock for finished goods with different pack sizes might still be getting overwritten (P1)
+- Issue 3: Manager actions (Manufacture/Pack) fail without clear initial guidance (P2)
+- Issue 4: Expo tunnel instability causing frequent downtime (P-INFRA)
 
 Issues Detail:
 - Issue 1:
-    - **Description**: User reported that when trying to save a recipe for the PSO loose oil, clicking the save button does nothing. This points to a silent backend failure or a frontend issue in handling the API response. The user also expanded the scope to request that no save action in the app should ever fail silently.
-    - **Attempted fixes**: In a previous step, the agent adjusted the backend recipe validation logic in  to allow for minor rounding errors (e.g., totals between 99.99 and 100.01). This did not resolve the underlying issue for PSO and didn't address the silent failure problem system-wide.
+    - **Description**: The agent implemented a new Reports tab for the owner to see the last 7 days of transactions, but the user reported it is empty. This is a bug in a newly delivered feature.
+    - **Attempted fixes**: None. The agent forked right after the user reported it.
     - **Next debug checklist**:
-        1.  **Backend ():**
-            - Wrap the logic inside the  endpoint within a  block.
-            - In the  block, log the full error and return a descriptive .
-            - Verify if PSO is correctly seeded as a  during database initialization.
-            - **Crucially**, apply this  pattern to all other data-mutating endpoints (e.g., , , , etc.) to ensure no action fails silently.
-        2.  **Frontend ():**
-            - Locate the  function (or equivalent).
-            - Wrap the  call in a  block.
-            - On success (inside ), use .
-            - On failure (inside ), display the error from the backend: .
-            - Apply this feedback pattern to all other screens where a save or submit action occurs.
-    - **Why fix this issue and what will be achieved with the fix?**: This is a critical usability issue. Fixing it will make the recipe feature functional and significantly improve the user experience by providing clear feedback for all major actions, preventing user confusion.
-    - **Status**: IN PROGRESS
+        1.  **Frontend ():**
+            - Verify the  hook is correctly calling the  function.
+            - Add  statements to check the data being received from the API and the state ().
+            - Check the  component to ensure it's correctly configured to render the  state.
+        2.  **Backend ():**
+            - Inspect the  endpoint.
+            - Add logging to see the query being sent to the  collection and the results returned.
+            - Manually query the database to ensure transactions exist within the last 7 days.
+    - **Why fix this issue and what will be achieved with the fix?**: This is a direct user request for accountability and tracking. Fixing it will complete the feature and satisfy the user's requirement.
+    - **Status**: NOT STARTED
+    - **Is recurring issue?**: N
+    - **Should Test frontend/backend/both after fix?**: both
+    - **Blocked on other issue**: None
+
+- Issue 2:
+    - **Description**: The user reported that packing Thrive 900ml overwrote the stock of Thrive 1L. The agent performed a major refactor across all backend stock endpoints (pack, sales, take-stock, returns) and frontend screens to use both  and  to identify products. However, this massive change was never tested or verified by the user. It is a critical data integrity risk.
+    - **Attempted fixes**: A large-scale refactor was implemented in  and multiple frontend files (, ).
+    - **Next debug checklist**:
+        1.  **Systematic Test Plan:**
+            - Create two finished goods with the same name but different sizes (e.g., Test-Product 1L and Test-Product 500ml).
+            - As Manager, pack 10 units of Test-Product 500ml. Verify in the dashboard that ONLY the stock for Test-Product 500ml increases.
+            - As Owner, take 2 units of Test-Product 1L into the car. Verify ONLY the stock for Test-Product 1L is affected in the factory and car.
+            - As Owner, record a sale of 1 unit of Test-Product 500ml. Verify correct deduction.
+            - Repeat for all stock-modifying actions.
+    - **Why fix this issue and what will be achieved with the fix?**: This is the most critical bug in the system. If not fixed, the inventory data is unreliable and the app is unusable for its core purpose.
+    - **Status**: TESTING PENDING
     - **Is recurring issue?**: Y
     - **Should Test frontend/backend/both after fix?**: both
     - **Blocked on other issue**: None
 
+- Issue 3:
+    - **Description**: The user repeatedly reports that manager actions like Manufacture Loose Oil don't confirm. The root cause is a workflow dependency (e.g., manufacturing requires raw materials in stock), but the UI doesn't make this clear, leading to a frustrating user experience. The agent added web-alerts, but a better in-app guide or UI disabling is needed.
+    - **Attempted fixes**: The agent added  to show backend error messages on the web preview.
+    - **Next debug checklist**:
+        1.  In , fetch current stock levels.
+        2.  Disable the Manufacture Loose Oil button if there are no recipes or insufficient raw materials. Show a tooltip or a small text explaining why it's disabled.
+        3.  Do the same for Pack Goods if there's insufficient loose oil or packing material.
+    - **Why fix this issue and what will be achieved with the fix?**: Improves usability and prevents user confusion and repeated bug reports.
+    - **Status**: NOT STARTED
+    - **Is recurring issue?**: Y
+    - **Should Test frontend/backend/both after fix?**: frontend
+    - **Blocked on other issue**: None
+
+- Issue 4:
+    - **Description**: The Expo tunnel used for the web preview is extremely unstable, leading to constant downtime and hundreds of wasted agent turns trying to restart it.
+    - **Attempted fixes**: Restarting services, waiting, calling troubleshoot agent. It seems to be a network-level issue within the environment.
+    - **Next debug checklist**:
+        1. If the tunnel fails to connect after 2-3 restart attempts, immediately call the .
+        2. Do not spend more than 10 tool calls trying to fix it manually.
+        3. Prioritize guiding the user toward a more stable deployment (APK build + Render backend) to move away from the unreliable preview link.
+    - **Why fix this issue and what will be achieved with the fix?**: Unblocks development and testing, and provides a stable experience for the user.
+    - **Status**: BLOCKED (Infrastructure issue)
+    - **Is recurring issue?**: Y
+    - **Should Test frontend/backend/both after fix?**: N/A
+    - **Blocked on other issue**: None
+
 **In progress Task List**:
-There are no other tasks in progress. The current focus is entirely on the issue listed above.
+- None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - **P1: Implement Low Stock Alerts**: As per the Optional but strongly recommended section of the PRD. This would involve adding logic to check stock levels against a predefined threshold and display a notification or visual indicator on the dashboard.
-  - **P1: Implement End-of-Day Summary**: Also from the Optional section. This requires creating a new screen or modal to display a summary of actions (manufactured, packed, sold, returned) for the current day.
-
+    - **P0: Implement Intermediate Goods Manufacturing:** Implement the user's request for a new workflow where items like 'VI' can be manufactured from raw materials and then used as raw materials themselves in other recipes. This is a complex architectural change.
+    - **P1: Create Backup/Deployment Documentation:** Fulfill the user's request for a guide on how to back up and redeploy the application.
+    - **P1: Finalize Deployment to a Stable Service (Render):** The agent started guiding the user through a Render deployment but was interrupted. This should be resumed to solve the preview link instability.
 - **Future Tasks:**
-  - **P2: Implement Fuzzy Name Matching**: The PRD required a warning for similar names when adding new items to prevent duplicates. This was missed. This should be implemented in the backend (, etc.) using a library like .
+    - **P1: Low Stock Alerts** (from PRD)
+    - **P1: End-of-Day Summary** (from PRD)
+    - **P2: Fuzzy Name Matching** (from PRD)
 
 **Completed work in this session**
-- **Full-stack Scaffolding**: Setup of Expo frontend, FastAPI backend, and MongoDB.
-- **Authentication**: Implemented JWT-based login for Owner and Manager roles.
-- **Core Features (Owner)**: Dashboard, Add New Items (Raw, Packing, Finished), Set Recipes, Take Stock, Record Sales, Initiate Returns, Edit Stock, Reset Stock.
-- **Core Features (Manager)**: Dashboard, Add Raw Material Stock, Manufacture Oil, Pack Goods, Approve Returns, Log Damaged Packing.
-- **Business Logic**: Enforced non-negative stock, recipe-based raw material deduction, and the full return approval workflow.
-- **Data Seeding**: Created a DB initialization endpoint with pre-populated data.
-- **UI/UX**: Implemented bottom tab navigation, modals for forms, and pull-to-refresh.
-- **Code Management**: Pushed the entire project to the user's GitHub repository.
-- **Bug Fixes**: Addressed login/logout issues on the web preview and removed hardcoded credentials from the UI.
-- **User Support**: Provided extensive guidance on building an APK, debugging local environment issues, and explaining deployment options (Emergent Preview vs. Render vs. Railway).
+- **CRUD for All Item Types:** Implemented Edit/Delete functionality for Raw Materials, Packing Materials, Loose Oils, and Finished Goods on the  screen.
+- **Manager Add Packing Stock Action:** Added a new action for the manager to add stock of packing containers.
+- **Accurate Oil Deduction Logic:** Refactored the  endpoint to correctly parse pack sizes (e.g., '900ml', '1.5L') and deduct the precise fractional amount of loose oil.
+- **Web-Preview Alert Fixes:** Implemented a  check in multiple screens (, , ) to use  and  instead of React Native's , fixing major usability issues on the web.
+- **Finished Good Identification Refactor (NEEDS VERIFICATION):** Performed a large-scale refactor to use both  and  when identifying finished goods in all stock operations to prevent data corruption.
+- **Owner Reports Feature:** Added a new Reports tab with a backend endpoint () to show the last 7 days of transactions.
 
 **Earlier issues found/mentioned but not fixed**
-   - **Issue 1: No fuzzy matching for new item names.**
-     - **Debug checklist**:
-       1. Add  library to .
-       2. In the  endpoints for creating raw materials, packing materials, etc., in , query all existing items of that type.
-       3. Loop through them and use  to compare the new name with existing names.
-       4. If any name has a ratio above a certain threshold (e.g., 85), return an  with a warning message like A similar item named ... already exists. Are you sure you want to create it?.
-       5. The frontend would then need to handle this specific warning.
-     - **Why to solve this issue and what will be achieved with this?**: This was a requirement in the PRD to prevent data entry errors and maintain clean data.
-     - **Should Test frontend/backend/both after fix**: backend
-     - **Is recurring issue?**: N
+- **Issue 1: No fuzzy matching for new item names.**
+    - **Debug checklist**: Implement name similarity check (e.g., using  library) in backend  endpoints for creating new items to warn against potential duplicates.
+    - **Why to solve this issue and what will be achieved with this?**: Prevents data entry errors and maintains clean data, as requested in the original PRD.
+    - **Should Test frontend/backend/both after fix**: backend
+    - **Is recurring issue?**: N
 
 **Known issue recurrence from previous fork**
-- Not applicable.
+- None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Frontend**: React Native, Expo, Expo Router (file-based routing), TypeScript, Zustand (for global state management), Axios (for API calls).
-- **Backend**: Python, FastAPI, Pydantic (for data modeling), Motor (async MongoDB driver).
+- **Frontend**: React Native, Expo, Expo Router, TypeScript, Zustand, Axios.
+- **Backend**: Python, FastAPI, Pydantic, Motor (async MongoDB driver).
 - **Database**: MongoDB.
-- **Authentication**: JSON Web Tokens (JWT) stored in secure storage on the client.
-- **Deployment Strategy**: The user faced significant issues building an APK locally. The current approach is to use the Emergent-provided web preview link. Permanent deployment options (Render, Railway) were discussed but deemed too complex by the user for now.
+- **Authentication**: JWT.
+- **Critical Pattern**: Using  to provide alternative UI components (like ) for web compatibility, as React Native's native modules () do not work in the web preview.
+- **Critical Pattern**: Identifying composite keys in business logic. The realization that a finished good is uniquely identified by  was a major finding that led to a large-scale refactor.
 
 **key DB schema**
-- **users**: { , ,  ('owner' or 'manager') }
-- **stock**: { ,  ('raw_material', 'packing_material', 'loose_oil', 'finished_good'),  ('factory' or 'car'),  }
-- **raw_materials**: { , ,  ('Litres' or 'Kg') }
-- **packing_materials**: { , ,  }
-- **loose_oils**: { ,  }
-- **finished_goods**: { , , ,  }
-- **recipes**: { , : [{ ,  }] }
-- **transactions**: { , , , ,  }
-- **returns**: { , ,  ('pending', 'approved', 'scrapped') }
+- **transactions**: { , , ,  } - This collection is now crucial for the new Reports feature. (No other changes to schema).
 
 **changes in tech stack**
-- None. The project was built from scratch on the default stack.
+- None.
 
 **All files of reference**
-- : Contains all backend logic, API endpoints, and database models. It's the single source of truth for the backend.
-- : The screen where the user is experiencing the silent save bug.
-- : The file containing the frontend API client logic. All  blocks for API calls will be added here or in the calling components.
-- : The Expo configuration file. It has been a source of build errors for the user and was simplified to get the build process further.
-- : Contains a complete overview of the project.
-- : Contains instructions for the user to build the APK, which they have so far failed to do.
+- : All backend logic resides here. Was heavily modified to add new endpoints, fix bugs, and refactor stock update logic.
+- : The central screen for all item management. Was heavily refactored to include full CRUD for all item types.
+- : The manager's main action screen. Was updated with a new action and web-compatible alerts.
+- : The owner's action screen. Was updated to send correct data for the  refactor.
+- : Updated with web-compatible alerts for the Reset Stock feature.
+- : A new file for the reports feature, which is currently buggy.
+- : Contains all frontend API calls. Was significantly updated with new functions for CRUD and reports.
 
-**Areas that need refactoring**
-- **Error Handling**: The entire application lacks robust error handling. The current P0 task is the first step in addressing this.  blocks with user-facing alerts are needed for all API calls in the frontend, and backend endpoints must return meaningful error messages.
-- **Monolithic Backend**:  is a single file containing over 1000 lines of code, including models, routes, and business logic. For future scalability, it should be broken down into a more structured package (e.g., , , ).
+**Areas that need refactoring**:
+- **Monolithic Backend**:  is now extremely large and complex. It urgently needs to be broken down into separate files for routers, models, and services to be maintainable.
+- **UI Feedback**: While web alerts were added as a patch, a more robust, cross-platform notification/toast system should be implemented instead of relying on native alerts or .
 
 **key api endpoints**
-- : User authentication.
-- : To seed the database with initial data.
-- : To create and manage manufacturing recipes.
-- : To fetch all stock data.
-- : For the owner to manually edit stock.
-- : For the owner to zero out all stock.
-- : To record a sale from any location.
-- : For the manager to manufacture loose oil.
-- : For the manager to pack finished goods.
-- : For the manager to process pending returns.
+- : New endpoints for deleting items.
+- : New endpoints for editing items.
+- : New endpoint for managers.
+- : New endpoint to fetch recent transactions.
+- , , : These and other stock-related endpoints were refactored to accept .
 
 **Critical Info for New Agent**
-- **PRIORITIZE BUG FIXES OVER DEPLOYMENT:** The user is currently using the web preview link. They have found the process of building an APK or deploying to a cloud service too complicated. Do not attempt to guide them through deployment again unless they explicitly ask. Focus on making the application work flawlessly on the provided preview link.
-- **THE USER'S LOCAL ENVIRONMENT IS UNRELIABLE:** The user's Windows machine has issues with 
-changed 3 packages, and audited 1007 packages in 44s
-
-183 packages are looking for funding
-  run `npm fund` for details
-
-38 vulnerabilities (1 low, 6 moderate, 31 high)
-
-To address issues that do not require attention, run:
-  npm audit fix
-
-To address all issues (including breaking changes), run:
-  npm audit fix --force
-
-Run `npm audit` for details. and An Expo user account is required to proceed.
-
-Log in to EAS with email or username (exit and run eas login --help to see other login options)
-Input is required, but stdin is not readable. Failed to display prompt: Email or username, likely due to path issues, permissions, or conflicts with other installed software (like MongoDB). Avoid suggesting solutions that rely on their local machine's build tools.
-- **SILENT FAILURES ARE A MAJOR PAIN POINT:** The user's latest request is to fix a silent failure and ensure it doesn't happen again. When implementing the fix, be thorough. Add user-facing feedback (Alerts) for both success and failure on all key actions (saving, creating, updating).
-- **GitHub Repo:** The project is at . Any code changes should be committable.
+- **PRIORITIZE DATA INTEGRITY:** The single most important task is to verify and fix the stock update logic (Pending Issue #2). The app's core value depends on this. Do not proceed with new features until you are certain that stock is not being corrupted.
+- **WEB PREVIEW IS UNSTABLE AND MISLEADING:**
+    - The Expo tunnel connection fails frequently. Use the  immediately after a few failed restarts. Do not waste time on it.
+    - Native components like  do not work on the web preview. The pattern  is a necessary workaround for all user feedback. Assume any new UI with alerts will need this.
+- **USER HAS REQUESTED COMPLEX NEW FEATURES:** The intermediate goods feature is a significant architectural change. It must be planned carefully, likely involving changes to the database schema (e.g., how item types are defined and related). Confirm your plan with the user before implementing.
+- **RESUME DEPLOYMENT PLAN:** The user wants a stable app. Once the critical bugs are fixed, resume the plan to deploy the backend to a service like Render and guide the user through building an APK. This will solve the infrastructure and web-preview UI problems permanently.
 
 **documents created in this job**
-- 
-- 
-- 
+- None. The agent was interrupted before creating the requested backup guide.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1. : User chose the Render deployment option. (Superseded)
-2. : User found Render deployment too complex and asked for simpler alternatives. (Completed)
-3. : User asked if using the preview link costs credits. (Completed, clarified it's free)
-4. : User reported a critical bug about a silent failure when saving a recipe. (In Progress)
-5. : User provided specifics on the recipe bug (PSO) and requested a system-wide fix for silent failures. (This is the current P0 task).
-6. : User confirmed that the logout functionality was not working after an attempted fix. (Superseded by a later fix)
-7. : User reported logout is still broken, but a side effect is that they can now log in as Owner. (Superseded by another fix)
-8. : User requested a UI privacy improvement. (Completed)
-9. : User reported the wake up behavior of the preview link and asked for an independent system. (Completed, explained options)
-10. : User asked for clarification on Render vs. Railway deployment. (Completed)
+1.  **Chat 839**: User asks for a way to reconcile stock and hold the manager accountable, requesting weekly reports. (NEW FEATURE)
+2.  **Chat 864**: User reports the new Reports tab is empty. (BUG)
+3.  **Chat 865**: (Duplicate of 864)
+4.  **Chat 867**: User re-confirms the Reports tab is empty, requests a new intermediate goods manufacturing feature, and asks for a backup/deployment guide. (BUG + 2 NEW FEATURES)
+5.  **Chat 870**: Agent says Not able to fork, signaling an issue at the end of the session. (META)
+6.  **Chat 366**: User reports that Reset Stock to Zero is not working. (RESOLVED by using web-alerts)
+7.  **Chat 390**: User reports Manufacture Loose Oil doesn't confirm. (PARTIALLY RESOLVED by adding web-alerts, but root UX issue remains)
+8.  **Chat 400**: User requests that the manager be able to add packing material stock. (COMPLETED)
+9.  **Chat 646**: User reports packing logic deducts the wrong amount of loose oil (e.g., 1L for a 900ml pack). (RESOLVED)
+10. **Chat 671**: User reports being unable to delete finished products. (RESOLVED by using web-alerts)
 
 **Project Health Check:**
 - **Broken**:
-    - The recipe-saving feature is not working correctly for all items and fails silently.
-    - The application generally lacks robust user feedback for success/error states on data submission.
-    - The local build process for the user is non-functional.
-- **Mocked**:
-    - None. The application is connected to a live database.
+    - The new Reports feature is non-functional.
+    - There is a high risk of a critical data integrity bug where finished good stock of one size overwrites another. The fix has not been verified.
+    - The development/preview environment is highly unstable due to Expo tunnel issues.
+- **Mocked**: None.
 
 **3rd Party Integrations**
-- None requiring special keys or setup. Standard open-source libraries are used.
+- None.
 
 **Testing status**
-- **Testing agent used after significant changes**: YES (Backend testing passed; frontend testing revealed bugs).
-- **Troubleshoot agent used after agent stuck in loop**: NO
+- **Testing agent used after significant changes**: YES, but not for the most recent and most critical changes.
+- **Troubleshoot agent used after agent stuck in loop**: YES, for the Expo tunnel issue.
 - **Test files created**: None.
-- **Known regressions**: The recipe-saving feature appears to have a bug or was never fully tested across all items.
+- **Known regressions**: The Reset Stock and Delete Item functions were found to be broken on the web preview and required patches. Any new feature using  will likely have the same regression.
 
 **Credentials to test flow:**
 - **Owner/Sales**:  / 
 - **Factory Manager**:  / 
 
 **What agent forgot to execute**
-- **Fuzzy Name Matching**: The original PRD specified that the system should warn on similar names when a new item is created. This feature was not implemented.
-- **Optional Features**: The low stock alerts and end-of-day summary features, while optional, were mentioned in the PRD and have not been implemented.
-- **Successful APK Build**: The agent was unable to successfully guide the user to build an APK due to issues on the user's local machine.
-
+- **User Verification:** The agent did not ask the user to verify the critical fix for the  stock update logic.
+- **PRD Features:** The fuzzy name matching, low stock alerts, and end-of-day summary features from the original PRD are still unimplemented.
+- **Deployment:** The plan to deploy to Render and build an APK was started but abandoned due to interruptions.
 </analysis>

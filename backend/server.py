@@ -1754,23 +1754,6 @@ async def initialize_data():
     }
 
 
-# Include router
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
-
-
 # ==================== WEEKLY REPORTS ====================
 
 @api_router.get("/owner/weekly-report")

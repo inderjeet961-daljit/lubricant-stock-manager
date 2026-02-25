@@ -237,3 +237,41 @@ export const getDailyReport = async (date: string) => {
   const response = await api.get(`/owner/daily-report/${date}`);
   return response.data;
 };
+
+// Edit finished product
+export const editFinishedProduct = async (name: string, pack_size: string, updates: { new_name?: string; new_pack_size?: string; new_linked_loose_oil?: string; new_linked_packing_material?: string }) => {
+  const response = await api.put('/owner/edit-finished-product', { name, pack_size, ...updates });
+  return response.data;
+};
+
+// Intermediate Goods
+export const getIntermediateGoods = async () => {
+  const response = await api.get('/stock/intermediate-goods');
+  return response.data;
+};
+
+export const addIntermediateGood = async (name: string, unit: string = 'litres') => {
+  const response = await api.post('/owner/add-intermediate-good', { name, unit });
+  return response.data;
+};
+
+export const deleteIntermediateGood = async (name: string) => {
+  const response = await api.delete(`/owner/delete-intermediate-good/${encodeURIComponent(name)}`);
+  return response.data;
+};
+
+export const setIntermediateRecipe = async (intermediate_good_name: string, ingredients: { raw_material_name: string; quantity_per_unit: number }[]) => {
+  const response = await api.post('/owner/set-intermediate-recipe', { intermediate_good_name, ingredients });
+  return response.data;
+};
+
+export const getIntermediateRecipes = async () => {
+  const response = await api.get('/intermediate-recipes');
+  return response.data;
+};
+
+export const manufactureIntermediateGood = async (intermediate_good_name: string, quantity: number) => {
+  const response = await api.post('/manager/manufacture-intermediate-good', { intermediate_good_name, quantity });
+  return response.data;
+};
+

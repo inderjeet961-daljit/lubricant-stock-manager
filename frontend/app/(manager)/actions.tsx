@@ -106,6 +106,7 @@ export default function ManagerActionsScreen() {
   const closeModal = () => {
     setModalVisible(false);
     setCurrentAction(null);
+    setCartons('');
   };
 
   const handleAction = async () => {

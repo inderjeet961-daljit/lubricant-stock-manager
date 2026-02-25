@@ -1406,31 +1406,44 @@ async def manufacture_loose_oil(data: ManufactureRequest, current_user: User = D
         required_quantity = (ingredient["percentage"] / 100.0) * data.quantity_litres
         required_materials[ingredient["raw_material_name"]] = required_quantity
     
-    # Check if sufficient raw materials available
+    # Check if sufficient raw materials available (check both raw_materials and intermediate_goods)
     insufficient = []
+    material_sources = {}  # track where each material comes from
     for material_name, required_qty in required_materials.items():
         material = await db.raw_materials.find_one({"name": material_name})
-        if not material:
-            raise HTTPException(status_code=400, detail=f"Raw material '{material_name}' not found")
-        if material["stock"] < required_qty:
-            insufficient.append(f"{material_name}: need {required_qty:.2f}, have {material['stock']:.2f}")
+        if material:
+            material_sources[material_name] = "raw_material"
+            if material["stock"] < required_qty:
+                insufficient.append(f"{material_name}: need {required_qty:.2f}, have {material['stock']:.2f}")
+        else:
+            ig = await db.intermediate_goods.find_one({"name": material_name})
+            if ig:
+                material_sources[material_name] = "intermediate_good"
+                if ig["stock"] < required_qty:
+                    insufficient.append(f"{material_name}: need {required_qty:.2f}, have {ig['stock']:.2f}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Material '{material_name}' not found in raw materials or intermediate goods")
     
     if insufficient:
         raise HTTPException(
             status_code=400,
-            detail=f"Insufficient raw materials: {', '.join(insufficient)}"
+            detail=f"Insufficient materials: {', '.join(insufficient)}"
         )
     
-    # Deduct raw materials
+    # Deduct materials from appropriate collection
     deductions = {}
     for material_name, required_qty in required_materials.items():
-        material = await db.raw_materials.find_one({"name": material_name})
-        new_stock = material["stock"] - required_qty
-        await db.raw_materials.update_one(
-            {"name": material_name},
-            {"$set": {"stock": new_stock}}
-        )
-        deductions[material_name] = {"used": required_qty, "prev_stock": material["stock"], "new_stock": new_stock}
+        source = material_sources[material_name]
+        if source == "raw_material":
+            material = await db.raw_materials.find_one({"name": material_name})
+            new_stock = material["stock"] - required_qty
+            await db.raw_materials.update_one({"name": material_name}, {"$set": {"stock": new_stock}})
+            deductions[material_name] = {"used": required_qty, "prev_stock": material["stock"], "new_stock": new_stock, "source": "raw_material"}
+        else:
+            ig = await db.intermediate_goods.find_one({"name": material_name})
+            new_stock = ig["stock"] - required_qty
+            await db.intermediate_goods.update_one({"name": material_name}, {"$set": {"stock": new_stock}})
+            deductions[material_name] = {"used": required_qty, "prev_stock": ig["stock"], "new_stock": new_stock, "source": "intermediate_good"}
     
     # Add to loose oil stock
     loose_oil = await db.loose_oils.find_one({"name": data.loose_oil_name})

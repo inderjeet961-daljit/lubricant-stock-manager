@@ -917,7 +917,7 @@ async def edit_finished_product(data: EditFinishedProductRequest, current_user: 
 
 @api_router.get("/stock/intermediate-goods", response_model=List[IntermediateGood])
 async def get_intermediate_goods(current_user: User = Depends(get_current_user)):
-    goods = await db.intermediate_goods.find({"_id": 0}).to_list(1000)
+    goods = await db.intermediate_goods.find({}, {"_id": 0}).to_list(1000)
     return [IntermediateGood(**g) for g in goods]
 
 
@@ -1019,7 +1019,7 @@ async def set_intermediate_recipe(data: SetIntermediateRecipeRequest, current_us
 
 @api_router.get("/intermediate-recipes")
 async def get_intermediate_recipes(current_user: User = Depends(get_current_user)):
-    recipes = await db.intermediate_recipes.find({"_id": 0}).to_list(100)
+    recipes = await db.intermediate_recipes.find({}, {"_id": 0}).to_list(100)
     return recipes
 
 

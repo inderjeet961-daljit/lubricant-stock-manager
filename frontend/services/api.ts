@@ -275,3 +275,8 @@ export const manufactureIntermediateGood = async (intermediate_good_name: string
   return response.data;
 };
 
+export const addCartons = async (product_name: string, pack_size: string, cartons: number) => {
+  const response = await api.post('/manager/add-cartons', { product_name, pack_size, cartons });
+  return response.data;
+};
+

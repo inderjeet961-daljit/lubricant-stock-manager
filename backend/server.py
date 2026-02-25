@@ -240,6 +240,54 @@ class UndoTransactionRequest(BaseModel):
     reason: str
 
 
+class EditFinishedProductRequest(BaseModel):
+    name: str
+    pack_size: str
+    new_name: Optional[str] = None
+    new_pack_size: Optional[str] = None
+    new_linked_loose_oil: Optional[str] = None
+    new_linked_packing_material: Optional[str] = None
+
+
+# Intermediate Goods Models
+class IntermediateGood(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    unit: Literal["litres", "kg"] = "litres"
+    stock: float = 0.0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+class IntermediateRecipeIngredient(BaseModel):
+    raw_material_name: str
+    quantity_per_unit: float  # how much raw material per 1 unit of intermediate good
+
+
+class IntermediateRecipe(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    intermediate_good_name: str
+    ingredients: List[IntermediateRecipeIngredient]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str
+
+
+class AddIntermediateGoodRequest(BaseModel):
+    name: str
+    unit: Literal["litres", "kg"] = "litres"
+
+
+class SetIntermediateRecipeRequest(BaseModel):
+    intermediate_good_name: str
+    ingredients: List[IntermediateRecipeIngredient]
+
+
+class ManufactureIntermediateRequest(BaseModel):
+    intermediate_good_name: str
+    quantity: float
+
+
 # ==================== AUTHENTICATION ====================
 
 def verify_password(plain_password, hashed_password):

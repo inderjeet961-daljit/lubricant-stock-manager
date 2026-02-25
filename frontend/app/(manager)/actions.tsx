@@ -358,6 +358,19 @@ export default function ManagerActionsScreen() {
                 keyboardType="numeric"
               />
 
+              {currentAction === 'pack' && (
+                <>
+                  <Text style={styles.label}>Cartons (optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Number of cartons packed"
+                    value={cartons}
+                    onChangeText={setCartons}
+                    keyboardType="numeric"
+                  />
+                </>
+              )}
+
               {currentAction === 'damaged' && (
                 <>
                   <Text style={styles.label}>Reason</Text>

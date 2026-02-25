@@ -177,6 +177,7 @@ export default function ManagerActionsScreen() {
       case 'pack': return 'Select Product';
       case 'damaged': return 'Select Packing Material';
       case 'manufacture_intermediate': return 'Select Intermediate Good';
+      case 'add_cartons': return 'Select Product';
       default: return 'Select Item';
     }
   };

@@ -17,18 +17,12 @@ BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://oil-inventory-app-
 
 # ==================== FIXTURES ====================
 
-@pytest.fixture(scope="session")
-def api_client():
-    """Shared requests session"""
+@pytest.fixture
+def owner_token():
+    """Get owner authentication token"""
     session = requests.Session()
     session.headers.update({"Content-Type": "application/json"})
-    return session
-
-
-@pytest.fixture(scope="session")
-def owner_token(api_client):
-    """Get owner authentication token"""
-    response = api_client.post(f"{BASE_URL}/api/auth/login", json={
+    response = session.post(f"{BASE_URL}/api/auth/login", json={
         "email": "owner@lubricant.com",
         "password": "owner123"
     })
@@ -36,10 +30,12 @@ def owner_token(api_client):
     return response.json().get("access_token")
 
 
-@pytest.fixture(scope="session")
-def manager_token(api_client):
+@pytest.fixture
+def manager_token():
     """Get manager authentication token"""
-    response = api_client.post(f"{BASE_URL}/api/auth/login", json={
+    session = requests.Session()
+    session.headers.update({"Content-Type": "application/json"})
+    response = session.post(f"{BASE_URL}/api/auth/login", json={
         "email": "manager@lubricant.com",
         "password": "manager123"
     })
@@ -48,17 +44,25 @@ def manager_token(api_client):
 
 
 @pytest.fixture
-def owner_client(api_client, owner_token):
+def owner_client(owner_token):
     """Session with owner auth header"""
-    api_client.headers.update({"Authorization": f"Bearer {owner_token}"})
-    return api_client
+    session = requests.Session()
+    session.headers.update({
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {owner_token}"
+    })
+    return session
 
 
 @pytest.fixture
-def manager_client(api_client, manager_token):
+def manager_client(manager_token):
     """Session with manager auth header"""
-    api_client.headers.update({"Authorization": f"Bearer {manager_token}"})
-    return api_client
+    session = requests.Session()
+    session.headers.update({
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {manager_token}"
+    })
+    return session
 
 
 # ==================== EDIT FINISHED PRODUCT TESTS ====================

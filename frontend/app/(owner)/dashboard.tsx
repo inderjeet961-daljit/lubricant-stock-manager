@@ -207,22 +207,33 @@ export default function OwnerDashboard() {
               </View>
               
               <View style={styles.stockRow}>
-                <View style={styles.stockColumn}>
-                  <Text style={styles.columnHeader}>Factory Stock</Text>
+                <View style={[styles.stockColumn, { flex: 2 }]}>
+                  <Text style={styles.columnHeader}>Product</Text>
                 </View>
                 <View style={styles.stockColumn}>
-                  <Text style={styles.columnHeader}>Car Stock</Text>
+                  <Text style={styles.columnHeader}>Factory</Text>
+                </View>
+                <View style={styles.stockColumn}>
+                  <Text style={styles.columnHeader}>Car</Text>
+                </View>
+                <View style={styles.stockColumn}>
+                  <Text style={styles.columnHeader}>Cartons</Text>
                 </View>
               </View>
               
               {finishedProducts.map((product) => (
                 <View key={product.id} style={styles.stockRow}>
-                  <View style={styles.stockColumn}>
+                  <View style={[styles.stockColumn, { flex: 2 }]}>
                     <Text style={styles.productName}>{product.name} ({product.pack_size})</Text>
+                  </View>
+                  <View style={styles.stockColumn}>
                     <Text style={styles.stockValue}>{product.factory_stock}</Text>
                   </View>
                   <View style={styles.stockColumn}>
                     <Text style={styles.stockValue}>{product.car_stock}</Text>
+                  </View>
+                  <View style={styles.stockColumn}>
+                    <Text style={[styles.stockValue, { color: '#E91E63' }]}>{product.carton_stock || 0}</Text>
                   </View>
                 </View>
               ))}

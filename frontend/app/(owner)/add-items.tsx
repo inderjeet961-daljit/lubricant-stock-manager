@@ -475,6 +475,92 @@ export default function AddItemsScreen() {
           <Ionicons name="chevron-forward" size={24} color="#8E8E93" />
         </TouchableOpacity>
 
+        {/* INTERMEDIATE GOODS SECTION */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Intermediate Goods</Text>
+        <Text style={{ fontSize: 13, color: '#8E8E93', marginHorizontal: 16, marginBottom: 12 }}>
+          Items manufactured from raw materials (e.g., VI, VI Super) that become ingredients for loose oil recipes
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.smallCard, { backgroundColor: '#E91E63', marginHorizontal: 16, marginBottom: 12 }]}
+          onPress={() => { setIgName(''); setIgUnit('litres'); setIgModalVisible(true); }}
+          data-testid="add-intermediate-good-btn"
+        >
+          <Ionicons name="add-circle" size={28} color="#fff" />
+          <Text style={styles.smallCardTitle}>Add Intermediate Good</Text>
+        </TouchableOpacity>
+
+        {intermediateGoods.map((ig) => {
+          const recipe = intermediateRecipes.find(r => r.intermediate_good_name === ig.name);
+          return (
+            <View key={ig.id} style={[styles.manageCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={[styles.manageIconBox, { backgroundColor: '#E91E63' }]}>
+                    <Ionicons name="flask" size={24} color="#fff" />
+                  </View>
+                  <View>
+                    <Text style={styles.manageCardTitle}>{ig.name}</Text>
+                    <Text style={styles.manageCardCount}>
+                      Stock: {ig.stock.toFixed(1)} {ig.unit} | Raw material stock: {rawMaterials.find(r => r.name === ig.name)?.stock?.toFixed(1) || '0.0'} {ig.unit}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.deleteButton, { marginLeft: 8 }]}
+                  onPress={async () => {
+                    const ok = await showConfirm('Delete', `Delete intermediate good "${ig.name}"?`);
+                    if (ok) {
+                      try {
+                        await deleteIntermediateGood(ig.name);
+                        showAlert('Success', `"${ig.name}" deleted`);
+                        loadData();
+                      } catch (e: any) {
+                        showAlert('Error', e.response?.data?.detail || 'Failed to delete');
+                      }
+                    }
+                  }}
+                >
+                  <Ionicons name="trash" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Recipe info */}
+              {recipe ? (
+                <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 4 }}>Recipe (per 1 {ig.unit}):</Text>
+                  {recipe.ingredients.map((ing: any, idx: number) => (
+                    <Text key={idx} style={{ fontSize: 13, color: '#666', marginLeft: 8 }}>
+                      {ing.raw_material_name}: {ing.quantity_per_unit} {ig.unit}
+                    </Text>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ fontSize: 13, color: '#FF9500', marginTop: 8 }}>No recipe set</Text>
+              )}
+              
+              <TouchableOpacity
+                style={{ marginTop: 8, backgroundColor: '#E91E63', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                onPress={() => {
+                  setSelectedIG(ig);
+                  // Pre-fill with existing recipe or default
+                  if (recipe) {
+                    setIgIngredients(recipe.ingredients.map((i: any) => ({ raw_material_name: i.raw_material_name, quantity_per_unit: i.quantity_per_unit })));
+                  } else {
+                    setIgIngredients([{ raw_material_name: rawMaterials.length > 0 ? rawMaterials[0].name : '', quantity_per_unit: 1 }]);
+                  }
+                  setIgRecipeModalVisible(true);
+                }}
+                data-testid={`set-recipe-${ig.name}`}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
+                  {recipe ? 'Edit Recipe' : 'Set Recipe'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+
         <View style={{ height: 40 }} />
       </ScrollView>
 

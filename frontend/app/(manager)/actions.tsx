@@ -267,11 +267,12 @@ export default function ManagerActionsScreen() {
         
         {/* Help Section */}
         <View style={styles.helpSection}>
-          <Text style={styles.helpTitle}>📋 Workflow Guide:</Text>
-          <Text style={styles.helpText}>1. <Text style={styles.bold}>Add Raw Materials</Text> - Base oils, additives (Lubricating Oil, VI, PPD)</Text>
-          <Text style={styles.helpText}>2. <Text style={styles.bold}>Add Packing</Text> - Bottles & containers (1L, 5L bottles)</Text>
-          <Text style={styles.helpText}>3. <Text style={styles.bold}>Manufacture Oil</Text> - Converts raw materials → loose oil (uses recipe %)</Text>
-          <Text style={styles.helpText}>4. <Text style={styles.bold}>Pack Goods</Text> - Loose oil + bottles → finished product</Text>
+          <Text style={styles.helpTitle}>Workflow Guide:</Text>
+          <Text style={styles.helpText}>1. <Text style={styles.bold}>Add Raw Materials</Text> - Base oils, additives (Lubricating Oil, Polymer)</Text>
+          <Text style={styles.helpText}>2. <Text style={styles.bold}>Manufacture Intermediate</Text> - Blend raw materials into VI, VI Super</Text>
+          <Text style={styles.helpText}>3. <Text style={styles.bold}>Add Packing</Text> - Bottles & containers (1L, 5L bottles)</Text>
+          <Text style={styles.helpText}>4. <Text style={styles.bold}>Manufacture Oil</Text> - Converts raw materials + intermediates into loose oil</Text>
+          <Text style={styles.helpText}>5. <Text style={styles.bold}>Pack Goods</Text> - Loose oil + bottles into finished product</Text>
         </View>
       </ScrollView>
 

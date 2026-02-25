@@ -94,6 +94,8 @@ export default function ManagerActionsScreen() {
       setSelectedItem(firstProduct ? `${firstProduct.name}|${firstProduct.pack_size}` : '');
     } else if (action === 'damaged') {
       setSelectedItem(packingMaterials[0]?.name || '');
+    } else if (action === 'manufacture_intermediate') {
+      setSelectedItem(intermediateGoods[0]?.name || '');
     }
     
     setModalVisible(true);

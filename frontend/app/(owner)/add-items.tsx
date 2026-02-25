@@ -176,6 +176,10 @@ export default function AddItemsScreen() {
       setEditUnit(item.unit);
     } else if (type === 'packing') {
       setEditSizeLabel(item.size_label || '');
+    } else if (type === 'finished') {
+      setEditPackSize(item.pack_size || '');
+      setEditLinkedLooseOil(item.linked_loose_oil || (looseOils.length > 0 ? looseOils[0].name : ''));
+      setEditLinkedPackingMaterial(item.linked_packing_material || (packingMaterials.length > 0 ? packingMaterials[0].name : ''));
     }
     setEditModalVisible(true);
   };
@@ -186,6 +190,9 @@ export default function AddItemsScreen() {
     setEditName('');
     setEditUnit('litres');
     setEditSizeLabel('');
+    setEditPackSize('');
+    setEditLinkedLooseOil('');
+    setEditLinkedPackingMaterial('');
   };
 
   const handleAddItem = async () => {

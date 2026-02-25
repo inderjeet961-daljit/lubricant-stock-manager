@@ -96,6 +96,7 @@ class FinishedProduct(BaseModel):
     linked_packing_material: str  # packing material name
     factory_stock: int = 0
     car_stock: int = 0
+    carton_stock: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str
 

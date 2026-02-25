@@ -342,6 +342,10 @@ export default function ManagerActionsScreen() {
                     intermediateGoods.map((ig) => (
                       <Picker.Item key={ig.id} label={`${ig.name} (Stock: ${ig.stock?.toFixed(1) || 0} ${ig.unit})`} value={ig.name} />
                     ))}
+                  {currentAction === 'add_cartons' &&
+                    finishedProducts.map((p) => (
+                      <Picker.Item key={p.id} label={`${p.name} (${p.pack_size}) - Cartons: ${p.carton_stock || 0}`} value={`${p.name}|${p.pack_size}`} />
+                    ))}
                 </Picker>
               </View>
 

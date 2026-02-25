@@ -1140,11 +1140,14 @@ async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_cu
         if not loose_oil:
             raise HTTPException(status_code=400, detail=f"Loose oil '{data.loose_oil_name}' not found. Please ensure this oil exists in the system.")
         
-        # Validate all raw materials exist
+        # Validate all raw materials exist (check both raw_materials and intermediate_goods)
         for ing in data.ingredients:
             material = await db.raw_materials.find_one({"name": ing.raw_material_name})
             if not material:
-                raise HTTPException(status_code=400, detail=f"Raw material '{ing.raw_material_name}' not found")
+                # Also check intermediate goods
+                ig = await db.intermediate_goods.find_one({"name": ing.raw_material_name})
+                if not ig:
+                    raise HTTPException(status_code=400, detail=f"Material '{ing.raw_material_name}' not found in raw materials or intermediate goods")
         
         # Check if recipe exists, update or create
         existing = await db.recipes.find_one({"loose_oil_name": data.loose_oil_name})

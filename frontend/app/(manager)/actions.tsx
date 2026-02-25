@@ -28,6 +28,7 @@ import {
   getIntermediateGoods,
   getIntermediateRecipes,
   manufactureIntermediateGood,
+  addCartons,
 } from '../../services/api';
 
 // Web-compatible alert function

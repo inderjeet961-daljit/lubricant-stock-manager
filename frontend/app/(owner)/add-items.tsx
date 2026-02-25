@@ -352,14 +352,13 @@ export default function AddItemsScreen() {
         )}
       </View>
       <View style={styles.listItemActions}>
-        {listType !== 'finished' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={() => openEditModal(item, listType)}
-          >
-            <Ionicons name="pencil" size={18} color="#fff" />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton]}
+          onPress={() => openEditModal(item, listType)}
+          data-testid={`edit-btn-${item.name}`}
+        >
+          <Ionicons name="pencil" size={18} color="#fff" />
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => handleDeleteItem(item, listType)}

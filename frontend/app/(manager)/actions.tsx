@@ -250,6 +250,18 @@ export default function ManagerActionsScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={[styles.wideActionCard, { backgroundColor: '#795548' }]}
+          onPress={() => openModal('add_cartons')}
+          data-testid="add-cartons-btn"
+        >
+          <Ionicons name="archive" size={28} color="#fff" />
+          <View style={styles.wideActionContent}>
+            <Text style={styles.wideActionTitle}>Add Cartons</Text>
+            <Text style={styles.wideActionDesc}>Record carton packaging for finished products</Text>
+          </View>
+        </TouchableOpacity>
+
         {intermediateGoods.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Intermediate Goods</Text>

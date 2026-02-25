@@ -155,6 +155,7 @@ export default function ManagerActionsScreen() {
       case 'manufacture': return 'Manufacture Loose Oil';
       case 'pack': return 'Pack Finished Goods';
       case 'damaged': return 'Mark Damaged Packing';
+      case 'manufacture_intermediate': return 'Manufacture Intermediate Good';
       default: return '';
     }
   };

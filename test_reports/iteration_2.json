@@ -1,0 +1,62 @@
+{
+  "summary": "Completed comprehensive testing of Edit Finished Products and Intermediate Goods features. Backend tests: 20/20 passed. Frontend UI verified all key features present and functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Items page", "issues": ["data-testid attributes present in code but Expo React Native web may not render them to DOM - this is expected behavior"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_intermediate_goods_and_edit_finished.py",
+    "/app/test_reports/pytest/pytest_intermediate_goods.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_intermediate_goods_and_edit_finished.py"],
+  "success_rate": {"backend": "100% (20/20 tests passed)", "frontend": "100% (all features verified)"},
+  "seed_data_creation": "Used existing data: VI and VI Super intermediate goods, VI has recipe (Lubricanting Oil: 0.8, Polymer: 0.2)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Edit Finished Products and Intermediate Goods features fully functional. Polymer raw material has 0 stock - manufacturing VI will fail due to insufficient Polymer. VI has 170.0 litres as raw material stock (previously manufactured). VI Super now has a recipe set via tests.",
+  "verified_features": {
+    "edit_finished_products": {
+      "status": "PASS",
+      "details": "Owner can see edit (pencil) button in blue on Finished Products list. Edit modal has Name, Pack Size, Linked Loose Oil, Linked Packing Material fields. PUT /api/owner/edit-finished-product endpoint works. Manager gets 403 when trying to edit."
+    },
+    "intermediate_goods_crud": {
+      "status": "PASS",
+      "details": "GET /api/stock/intermediate-goods returns VI and VI Super. POST /api/owner/add-intermediate-good works for owner. DELETE /api/owner/delete-intermediate-good works. Manager gets 403 on all owner-only endpoints."
+    },
+    "intermediate_goods_recipes": {
+      "status": "PASS",
+      "details": "GET /api/intermediate-recipes returns recipes. VI shows recipe (Lubricanting Oil: 0.8, Polymer: 0.2). POST /api/owner/set-intermediate-recipe works. VI Super was set via tests."
+    },
+    "intermediate_goods_manufacturing": {
+      "status": "PASS",
+      "details": "POST /api/manager/manufacture-intermediate-good works for manager role. Returns 403 for owner. Returns 400 for insufficient stock. Returns 400 when no recipe set. Returns 404 for non-existent intermediate good."
+    },
+    "intermediate_goods_ui_owner": {
+      "status": "PASS",
+      "details": "Items page shows Intermediate Goods section with VI and VI Super cards. VI shows recipe (per 1 litres), stock, raw material stock. Add Intermediate Good button visible (pink). Edit Recipe / Set Recipe buttons visible. Delete button (red trash) visible."
+    },
+    "intermediate_goods_ui_manager": {
+      "status": "PASS",
+      "details": "Factory Actions page shows Intermediate Goods section with 'Manufacture Intermediate Good' action button (pink). Workflow Guide explains steps including manufacturing intermediate goods."
+    },
+    "access_control": {
+      "status": "PASS",
+      "details": "Owner-only endpoints (add/delete intermediate good, set recipe, edit finished product) return 403 for manager. Manager-only endpoint (manufacture intermediate good) returns 403 for owner."
+    }
+  },
+  "test_credentials": {
+    "owner_email": "owner@lubricant.com",
+    "owner_password": "owner123",
+    "manager_email": "manager@lubricant.com",
+    "manager_password": "manager123"
+  }
+}

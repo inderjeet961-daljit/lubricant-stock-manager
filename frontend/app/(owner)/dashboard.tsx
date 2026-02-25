@@ -269,35 +269,12 @@ export default function OwnerDashboard() {
                 <Text style={styles.blockTitle}>Raw Material Stock</Text>
               </View>
               
-              <Text style={styles.categoryTitle}>Base Oils</Text>
-              {rawMaterials
-                .filter((m) => ['Seiko', '150', 'Other'].includes(m.name))
-                .map((material) => (
-                  <View key={material.id} style={styles.itemRow}>
-                    <Text style={styles.itemName}>{material.name}</Text>
-                    <Text style={styles.itemValue}>{material.stock.toFixed(2)} {material.unit}</Text>
-                  </View>
-                ))}
-              
-              <Text style={styles.categoryTitle}>Additives</Text>
-              {rawMaterials
-                .filter((m) => ['4T', 'Gear Oil', 'Hydraulic', 'Synth', 'CH4'].includes(m.name))
-                .map((material) => (
-                  <View key={material.id} style={styles.itemRow}>
-                    <Text style={styles.itemName}>{material.name}</Text>
-                    <Text style={styles.itemValue}>{material.stock.toFixed(2)} {material.unit}</Text>
-                  </View>
-                ))}
-              
-              <Text style={styles.categoryTitle}>Others</Text>
-              {rawMaterials
-                .filter((m) => ['VI', 'PPD', 'Dye'].includes(m.name))
-                .map((material) => (
-                  <View key={material.id} style={styles.itemRow}>
-                    <Text style={styles.itemName}>{material.name}</Text>
-                    <Text style={styles.itemValue}>{material.stock.toFixed(2)} {material.unit}</Text>
-                  </View>
-                ))}
+              {rawMaterials.map((material) => (
+                <View key={material.id} style={styles.itemRow}>
+                  <Text style={styles.itemName}>{material.name}</Text>
+                  <Text style={styles.itemValue}>{material.stock.toFixed(2)} {material.unit}</Text>
+                </View>
+              ))}
               
               {rawMaterials.length === 0 && (
                 <Text style={styles.emptyText}>No raw materials yet</Text>

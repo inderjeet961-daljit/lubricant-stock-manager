@@ -9,11 +9,20 @@ import {
   TextInput,
   Alert,
   Picker,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { getLooseOils, getRawMaterials, setRecipe, getRecipes } from '../../services/api';
+import { getLooseOils, getRawMaterials, setRecipe, getRecipes, getIntermediateGoods } from '../../services/api';
+
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function RecipesScreen() {
   const [modalVisible, setModalVisible] = useState(false);

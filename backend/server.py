@@ -1148,6 +1148,7 @@ async def add_intermediate_stock(data: ManufactureIntermediateRequest, current_u
 
 
 
+@api_router.post("/owner/set-recipe")
 async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "owner":
         raise HTTPException(status_code=403, detail="Only owner can set recipes")

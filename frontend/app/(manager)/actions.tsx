@@ -132,6 +132,9 @@ export default function ManagerActionsScreen() {
       } else if (currentAction === 'damaged') {
         await markDamagedPacking(selectedItem, parseInt(String(qty)), reason);
         showAlert('Success', `Marked ${parseInt(String(qty))} units as damaged`);
+      } else if (currentAction === 'manufacture_intermediate') {
+        await manufactureIntermediateGood(selectedItem, qty);
+        showAlert('Success', `Manufactured ${qty} of ${selectedItem}`);
       }
       
       closeModal();

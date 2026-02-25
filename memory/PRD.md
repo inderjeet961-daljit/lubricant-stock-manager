@@ -28,6 +28,10 @@ Build and deploy a complete Android mobile application for Automotive Lubricant 
 - P2: Manager UX - disable actions when prerequisites missing
 - P-INFRA: Expo tunnel instability
 
+## Bugs Fixed
+- **Weekly Reports empty (Feb 24)**: `app.include_router` was called before report routes were defined
+- **Edit Stock Manually not working on web (Feb 25)**: `Alert.alert()` with buttons doesn't work on web; replaced with `window.confirm()`/`window.alert()`
+
 ## Upcoming Tasks
 - P0: Intermediate Goods Manufacturing (VI, VI Super workflow)
 - P1: Backup/Deployment Documentation

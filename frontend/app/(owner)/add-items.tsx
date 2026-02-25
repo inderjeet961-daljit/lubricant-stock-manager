@@ -112,16 +112,20 @@ export default function AddItemsScreen() {
 
   const loadData = async () => {
     try {
-      const [oils, packing, raw, products] = await Promise.all([
+      const [oils, packing, raw, products, igs, igRecipes] = await Promise.all([
         getLooseOils(),
         getPackingMaterials(),
         getRawMaterials(),
         getFinishedProducts(),
+        getIntermediateGoods(),
+        getIntermediateRecipes(),
       ]);
       setLooseOils(oils);
       setPackingMaterials(packing);
       setRawMaterials(raw);
       setFinishedProducts(products);
+      setIntermediateGoods(igs);
+      setIntermediateRecipes(igRecipes);
       if (oils.length > 0) setLinkedLooseOil(oils[0].name);
       if (packing.length > 0) setLinkedPackingMaterial(packing[0].name);
     } catch (error) {

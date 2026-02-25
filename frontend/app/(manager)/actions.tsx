@@ -53,6 +53,7 @@ export default function ManagerActionsScreen() {
   
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [cartons, setCartons] = useState('');
   const [reason, setReason] = useState('Broken');
 
   useEffect(() => {

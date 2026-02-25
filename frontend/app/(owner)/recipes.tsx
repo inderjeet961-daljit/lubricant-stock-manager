@@ -92,7 +92,7 @@ export default function RecipesScreen() {
     if (Math.abs(total - 100) > 0.5) {
       const errorMsg = `Recipe Total Must Be 100%\n\nCurrent total: ${total.toFixed(2)}%\n\nPlease adjust percentages to total exactly 100%.`;
       console.error('Validation failed:', errorMsg);
-      Alert.alert('Recipe Total Must Be 100%', errorMsg);
+      showAlert('Recipe Total Must Be 100%', errorMsg);
       return;
     }
 
@@ -108,7 +108,7 @@ export default function RecipesScreen() {
     if (validIngredients.length === 0) {
       const errorMsg = 'Please add at least one ingredient with a percentage';
       console.error(errorMsg);
-      Alert.alert('Error', errorMsg);
+      showAlert('Error', errorMsg);
       return;
     }
 
@@ -117,7 +117,7 @@ export default function RecipesScreen() {
     if (hasInvalidNumbers) {
       const errorMsg = 'All percentages must be valid positive numbers';
       console.error(errorMsg);
-      Alert.alert('Error', errorMsg);
+      showAlert('Error', errorMsg);
       return;
     }
 
@@ -137,7 +137,7 @@ export default function RecipesScreen() {
       const response = await setRecipe(selectedOil, normalizedIngredients);
       console.log('API Response:', response);
       
-      Alert.alert('Success', `Recipe for ${selectedOil} saved successfully!`);
+      showAlert('Success', `Recipe for ${selectedOil} saved successfully!`);
       closeModal();
       loadData();
     } catch (error: any) {
@@ -149,7 +149,7 @@ export default function RecipesScreen() {
         || error.message 
         || 'Failed to save recipe. Please check your internet connection and try again.';
       
-      Alert.alert(
+      showAlert(
         'Failed to Save Recipe',
         `Error: ${errorMessage}\n\nOil: ${selectedOil}\nIngredients: ${validIngredients.length}\n\nPlease try again or contact support if this persists.`
       );

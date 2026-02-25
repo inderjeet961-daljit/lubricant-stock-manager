@@ -236,6 +236,23 @@ export default function ManagerActionsScreen() {
           </TouchableOpacity>
         </View>
 
+        {intermediateGoods.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Intermediate Goods</Text>
+            <TouchableOpacity
+              style={[styles.wideActionCard, { backgroundColor: '#E91E63' }]}
+              onPress={() => openModal('manufacture_intermediate')}
+              data-testid="manufacture-intermediate-btn"
+            >
+              <Ionicons name="flask" size={28} color="#fff" />
+              <View style={styles.wideActionContent}>
+                <Text style={styles.wideActionTitle}>Manufacture Intermediate Good</Text>
+                <Text style={styles.wideActionDesc}>Blend raw materials into VI, VI Super, etc.</Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
+
         <Text style={styles.sectionTitle}>Quality Control</Text>
         <TouchableOpacity
           style={[styles.wideActionCard, { backgroundColor: '#FF3B30' }]}

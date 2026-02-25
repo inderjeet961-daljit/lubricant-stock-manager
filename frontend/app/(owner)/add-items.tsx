@@ -775,6 +775,139 @@ export default function AddItemsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ADD INTERMEDIATE GOOD MODAL */}
+      <Modal visible={igModalVisible} animationType="slide" transparent onRequestClose={() => setIgModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Intermediate Good</Text>
+              <TouchableOpacity onPress={() => setIgModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.label}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., VI, VI Super"
+                value={igName}
+                onChangeText={setIgName}
+              />
+              <Text style={styles.label}>Unit *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker selectedValue={igUnit} onValueChange={setIgUnit} style={styles.picker}>
+                  <Picker.Item label="Litres" value="litres" />
+                  <Picker.Item label="Kg" value="kg" />
+                </Picker>
+              </View>
+              <TouchableOpacity
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                onPress={async () => {
+                  if (!igName.trim()) { showAlert('Error', 'Name is required'); return; }
+                  setLoading(true);
+                  try {
+                    await addIntermediateGood(igName, igUnit);
+                    showAlert('Success', `Intermediate good "${igName}" added`);
+                    setIgModalVisible(false);
+                    loadData();
+                  } catch (e: any) {
+                    showAlert('Error', e.response?.data?.detail || 'Failed to add');
+                  } finally { setLoading(false); }
+                }}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Add</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* SET INTERMEDIATE RECIPE MODAL */}
+      <Modal visible={igRecipeModalVisible} animationType="slide" transparent onRequestClose={() => setIgRecipeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Recipe for {selectedIG?.name}</Text>
+              <TouchableOpacity onPress={() => setIgRecipeModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={{ fontSize: 13, color: '#8E8E93', marginBottom: 12 }}>
+                Define how much of each raw material is needed to produce 1 {selectedIG?.unit} of {selectedIG?.name}
+              </Text>
+
+              {igIngredients.map((ing, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <View style={[styles.pickerContainer, { flex: 1 }]}>
+                    <Picker
+                      selectedValue={ing.raw_material_name}
+                      onValueChange={(v) => {
+                        const updated = [...igIngredients];
+                        updated[idx].raw_material_name = v;
+                        setIgIngredients(updated);
+                      }}
+                      style={styles.picker}
+                    >
+                      {rawMaterials.filter(r => !intermediateGoods.find(ig => ig.name === r.name)).map(rm => (
+                        <Picker.Item key={rm.id} label={rm.name} value={rm.name} />
+                      ))}
+                    </Picker>
+                  </View>
+                  <TextInput
+                    style={[styles.input, { width: 80 }]}
+                    placeholder="Qty"
+                    keyboardType="numeric"
+                    value={String(ing.quantity_per_unit)}
+                    onChangeText={(v) => {
+                      const updated = [...igIngredients];
+                      updated[idx].quantity_per_unit = parseFloat(v) || 0;
+                      setIgIngredients(updated);
+                    }}
+                  />
+                  <TouchableOpacity onPress={() => {
+                    const updated = igIngredients.filter((_, i) => i !== idx);
+                    setIgIngredients(updated);
+                  }}>
+                    <Ionicons name="trash" size={20} color="#FF3B30" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, paddingVertical: 8 }}
+                onPress={() => setIgIngredients([...igIngredients, { raw_material_name: rawMaterials.length > 0 ? rawMaterials[0].name : '', quantity_per_unit: 1 }])}
+              >
+                <Ionicons name="add-circle" size={20} color="#007AFF" />
+                <Text style={{ color: '#007AFF', fontWeight: '600' }}>Add Ingredient</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                onPress={async () => {
+                  if (igIngredients.length === 0) { showAlert('Error', 'Add at least one ingredient'); return; }
+                  const invalid = igIngredients.find(i => !i.raw_material_name || i.quantity_per_unit <= 0);
+                  if (invalid) { showAlert('Error', 'All ingredients must have a name and positive quantity'); return; }
+                  setLoading(true);
+                  try {
+                    await setIntermediateRecipe(selectedIG.name, igIngredients);
+                    showAlert('Success', `Recipe for "${selectedIG.name}" saved`);
+                    setIgRecipeModalVisible(false);
+                    loadData();
+                  } catch (e: any) {
+                    showAlert('Error', e.response?.data?.detail || 'Failed to save recipe');
+                  } finally { setLoading(false); }
+                }}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Save Recipe</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -167,6 +167,7 @@ export default function ManagerActionsScreen() {
       case 'manufacture': return 'Select Loose Oil';
       case 'pack': return 'Select Product';
       case 'damaged': return 'Select Packing Material';
+      case 'manufacture_intermediate': return 'Select Intermediate Good';
       default: return 'Select Item';
     }
   };

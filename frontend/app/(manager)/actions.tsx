@@ -179,6 +179,7 @@ export default function ManagerActionsScreen() {
       case 'manufacture': return 'Quantity (Litres)';
       case 'pack': return 'Quantity (Pieces)';
       case 'damaged': return 'Quantity (Pieces)';
+      case 'manufacture_intermediate': return 'Quantity (Litres/Kg)';
       default: return 'Quantity';
     }
   };

@@ -164,6 +164,7 @@ export default function ManagerActionsScreen() {
       case 'pack': return 'Pack Finished Goods';
       case 'damaged': return 'Mark Damaged Packing';
       case 'manufacture_intermediate': return 'Manufacture Intermediate Good';
+      case 'add_cartons': return 'Add Cartons';
       default: return '';
     }
   };

@@ -75,35 +75,56 @@ export default function EditStockScreen() {
     return 0;
   };
 
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleUpdateStock = async () => {
-    if (!newValue || isNaN(newValue) || parseFloat(newValue) < 0) {
-      Alert.alert('Error', 'Please enter a valid non-negative number');
+    if (!newValue || isNaN(Number(newValue)) || parseFloat(newValue) < 0) {
+      showAlert('Error', 'Please enter a valid non-negative number');
       return;
     }
 
     const actualField = itemType === 'finished_product' ? field : 
                        itemType === 'loose_oil' ? 'stock_litres' : 'stock';
 
-    Alert.alert(
-      'Confirm Stock Edit',
-      `Are you sure you want to set ${selectedItem} ${actualField} to ${newValue}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: async () => {
-            try {
-              await editStock(itemType, selectedItem, actualField, parseFloat(newValue));
-              Alert.alert('Success', 'Stock updated successfully');
-              setNewValue('');
-              loadData();
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.detail || 'Failed to update stock');
-            }
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to set ${selectedItem} ${actualField} to ${newValue}?`);
+      if (!confirmed) return;
+      try {
+        await editStock(itemType, selectedItem, actualField, parseFloat(newValue));
+        window.alert('Stock updated successfully');
+        setNewValue('');
+        loadData();
+      } catch (error: any) {
+        window.alert(error.response?.data?.detail || 'Failed to update stock');
+      }
+    } else {
+      Alert.alert(
+        'Confirm Stock Edit',
+        `Are you sure you want to set ${selectedItem} ${actualField} to ${newValue}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Confirm',
+            onPress: async () => {
+              try {
+                await editStock(itemType, selectedItem, actualField, parseFloat(newValue));
+                Alert.alert('Success', 'Stock updated successfully');
+                setNewValue('');
+                loadData();
+              } catch (error: any) {
+                Alert.alert('Error', error.response?.data?.detail || 'Failed to update stock');
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const getItemList = () => {

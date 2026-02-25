@@ -204,6 +204,7 @@ class PackFinishedGoodsRequest(BaseModel):
     product_name: str
     pack_size: str
     quantity: int
+    cartons: int = 0  # number of cartons packed
 
 
 class TakeStockInCarRequest(BaseModel):

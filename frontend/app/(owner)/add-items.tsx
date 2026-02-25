@@ -644,6 +644,36 @@ export default function AddItemsScreen() {
                 </>
               )}
 
+              {listType === 'finished' && (
+                <>
+                  <Text style={styles.label}>Pack Size</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 1L, 900ml"
+                    value={editPackSize}
+                    onChangeText={setEditPackSize}
+                  />
+
+                  <Text style={styles.label}>Linked Loose Oil</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker selectedValue={editLinkedLooseOil} onValueChange={setEditLinkedLooseOil} style={styles.picker}>
+                      {looseOils.map((oil) => (
+                        <Picker.Item key={oil.id} label={oil.name} value={oil.name} />
+                      ))}
+                    </Picker>
+                  </View>
+
+                  <Text style={styles.label}>Linked Packing Material</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker selectedValue={editLinkedPackingMaterial} onValueChange={setEditLinkedPackingMaterial} style={styles.picker}>
+                      {packingMaterials.map((pack) => (
+                        <Picker.Item key={pack.id} label={pack.name} value={pack.name} />
+                      ))}
+                    </Picker>
+                  </View>
+                </>
+              )}
+
               <TouchableOpacity
                 style={[styles.submitButton, loading && styles.submitButtonDisabled]}
                 onPress={handleEditItem}

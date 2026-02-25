@@ -48,6 +48,7 @@ export default function ManagerActionsScreen() {
   const [looseOils, setLooseOils] = useState([]);
   const [finishedProducts, setFinishedProducts] = useState([]);
   const [packingMaterials, setPackingMaterials] = useState([]);
+  const [intermediateGoods, setIntermediateGoods] = useState([]);
   
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -59,16 +60,18 @@ export default function ManagerActionsScreen() {
 
   const loadData = async () => {
     try {
-      const [raw, oils, products, packing] = await Promise.all([
+      const [raw, oils, products, packing, igs] = await Promise.all([
         getRawMaterials(),
         getLooseOils(),
         getFinishedProducts(),
         getPackingMaterials(),
+        getIntermediateGoods(),
       ]);
       setRawMaterials(raw);
       setLooseOils(oils);
       setFinishedProducts(products);
       setPackingMaterials(packing);
+      setIntermediateGoods(igs);
       
       if (raw.length > 0) setSelectedItem(raw[0].name);
     } catch (error) {

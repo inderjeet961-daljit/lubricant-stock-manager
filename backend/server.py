@@ -853,7 +853,273 @@ async def delete_finished_product(name: str, pack_size: str, current_user: User 
         raise HTTPException(status_code=500, detail=f"Failed to delete finished product: {str(e)}")
 
 
-@api_router.post("/owner/set-recipe")
+@api_router.put("/owner/edit-finished-product")
+async def edit_finished_product(data: EditFinishedProductRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can edit finished products")
+    
+    try:
+        product = await db.finished_products.find_one({"name": data.name, "pack_size": data.pack_size})
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Finished product '{data.name}' ({data.pack_size}) not found")
+        
+        update_fields = {}
+        new_name = data.new_name or data.name
+        new_pack_size = data.new_pack_size or data.pack_size
+        
+        # Check for duplicate if name or pack_size changing
+        if new_name != data.name or new_pack_size != data.pack_size:
+            existing = await db.finished_products.find_one({"name": new_name, "pack_size": new_pack_size})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Finished product '{new_name}' ({new_pack_size}) already exists")
+        
+        if data.new_name:
+            update_fields["name"] = data.new_name
+        if data.new_pack_size:
+            update_fields["pack_size"] = data.new_pack_size
+        if data.new_linked_loose_oil:
+            oil = await db.loose_oils.find_one({"name": data.new_linked_loose_oil})
+            if not oil:
+                raise HTTPException(status_code=400, detail=f"Loose oil '{data.new_linked_loose_oil}' not found")
+            update_fields["linked_loose_oil"] = data.new_linked_loose_oil
+        if data.new_linked_packing_material:
+            pack = await db.packing_materials.find_one({"name": data.new_linked_packing_material})
+            if not pack:
+                raise HTTPException(status_code=400, detail=f"Packing material '{data.new_linked_packing_material}' not found")
+            update_fields["linked_packing_material"] = data.new_linked_packing_material
+        
+        if not update_fields:
+            return {"message": "No changes to apply"}
+        
+        await db.finished_products.update_one(
+            {"name": data.name, "pack_size": data.pack_size},
+            {"$set": update_fields}
+        )
+        
+        transaction = Transaction(
+            type="edit_finished_product",
+            user_id=current_user.id,
+            user_name=current_user.name,
+            data={"original_name": data.name, "original_pack_size": data.pack_size, "changes": update_fields}
+        )
+        await db.transactions.insert_one(transaction.dict())
+        
+        logger.info(f"Finished product '{data.name}' ({data.pack_size}) edited by {current_user.name}")
+        return {"message": f"Finished product updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error editing finished product: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to edit finished product: {str(e)}")
+
+
+# ==================== INTERMEDIATE GOODS ====================
+
+@api_router.get("/stock/intermediate-goods", response_model=List[IntermediateGood])
+async def get_intermediate_goods(current_user: User = Depends(get_current_user)):
+    goods = await db.intermediate_goods.find({"_id": 0}).to_list(1000)
+    return [IntermediateGood(**g) for g in goods]
+
+
+@api_router.post("/owner/add-intermediate-good")
+async def add_intermediate_good(data: AddIntermediateGoodRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can add intermediate goods")
+    
+    existing = await db.intermediate_goods.find_one({"name": data.name})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Intermediate good '{data.name}' already exists")
+    
+    good = IntermediateGood(name=data.name, unit=data.unit, created_by=current_user.id)
+    await db.intermediate_goods.insert_one(good.dict())
+    
+    transaction = Transaction(
+        type="add_intermediate_good",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={"name": data.name, "unit": data.unit}
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    logger.info(f"Intermediate good '{data.name}' added by {current_user.name}")
+    return {"message": f"Intermediate good '{data.name}' added successfully"}
+
+
+@api_router.delete("/owner/delete-intermediate-good/{name}")
+async def delete_intermediate_good(name: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can delete intermediate goods")
+    
+    good = await db.intermediate_goods.find_one({"name": name})
+    if not good:
+        raise HTTPException(status_code=404, detail=f"Intermediate good '{name}' not found")
+    
+    # Check if used in any loose oil recipe
+    recipe_using = await db.recipes.find_one({"ingredients.raw_material_name": name})
+    if recipe_using:
+        raise HTTPException(status_code=400, detail=f"Cannot delete '{name}' - it's used in recipe for '{recipe_using['loose_oil_name']}'. Remove it from recipes first.")
+    
+    await db.intermediate_goods.delete_one({"name": name})
+    await db.intermediate_recipes.delete_many({"intermediate_good_name": name})
+    
+    transaction = Transaction(
+        type="delete_intermediate_good",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={"name": name}
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Intermediate good '{name}' deleted successfully"}
+
+
+@api_router.post("/owner/set-intermediate-recipe")
+async def set_intermediate_recipe(data: SetIntermediateRecipeRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can set recipes")
+    
+    good = await db.intermediate_goods.find_one({"name": data.intermediate_good_name})
+    if not good:
+        raise HTTPException(status_code=404, detail=f"Intermediate good '{data.intermediate_good_name}' not found")
+    
+    # Validate raw materials exist
+    for ingredient in data.ingredients:
+        mat = await db.raw_materials.find_one({"name": ingredient.raw_material_name})
+        if not mat:
+            raise HTTPException(status_code=400, detail=f"Raw material '{ingredient.raw_material_name}' not found")
+    
+    # Upsert recipe
+    existing = await db.intermediate_recipes.find_one({"intermediate_good_name": data.intermediate_good_name})
+    if existing:
+        await db.intermediate_recipes.update_one(
+            {"intermediate_good_name": data.intermediate_good_name},
+            {"$set": {
+                "ingredients": [i.dict() for i in data.ingredients],
+                "updated_at": datetime.utcnow()
+            }}
+        )
+    else:
+        recipe = IntermediateRecipe(
+            intermediate_good_name=data.intermediate_good_name,
+            ingredients=data.ingredients,
+            created_by=current_user.id
+        )
+        await db.intermediate_recipes.insert_one(recipe.dict())
+    
+    transaction = Transaction(
+        type="set_intermediate_recipe",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={"intermediate_good_name": data.intermediate_good_name, "ingredients": [i.dict() for i in data.ingredients]}
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Recipe for '{data.intermediate_good_name}' saved successfully"}
+
+
+@api_router.get("/intermediate-recipes")
+async def get_intermediate_recipes(current_user: User = Depends(get_current_user)):
+    recipes = await db.intermediate_recipes.find({"_id": 0}).to_list(100)
+    return recipes
+
+
+@api_router.post("/manager/manufacture-intermediate-good")
+async def manufacture_intermediate_good(data: ManufactureIntermediateRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can manufacture intermediate goods")
+    
+    good = await db.intermediate_goods.find_one({"name": data.intermediate_good_name})
+    if not good:
+        raise HTTPException(status_code=404, detail=f"Intermediate good '{data.intermediate_good_name}' not found")
+    
+    recipe = await db.intermediate_recipes.find_one({"intermediate_good_name": data.intermediate_good_name})
+    if not recipe:
+        raise HTTPException(status_code=400, detail=f"No recipe found for '{data.intermediate_good_name}'. Ask owner to set recipe first.")
+    
+    # Calculate required raw materials
+    required_materials = {}
+    for ingredient in recipe["ingredients"]:
+        required_qty = ingredient["quantity_per_unit"] * data.quantity
+        required_materials[ingredient["raw_material_name"]] = required_qty
+    
+    # Check stock
+    insufficient = []
+    for mat_name, req_qty in required_materials.items():
+        mat = await db.raw_materials.find_one({"name": mat_name})
+        if not mat:
+            raise HTTPException(status_code=400, detail=f"Raw material '{mat_name}' not found")
+        if mat["stock"] < req_qty:
+            insufficient.append(f"{mat_name}: need {req_qty:.2f}, have {mat['stock']:.2f}")
+    
+    if insufficient:
+        raise HTTPException(status_code=400, detail=f"Insufficient raw materials: {', '.join(insufficient)}")
+    
+    # Deduct raw materials
+    deductions = {}
+    for mat_name, req_qty in required_materials.items():
+        mat = await db.raw_materials.find_one({"name": mat_name})
+        new_stock = mat["stock"] - req_qty
+        await db.raw_materials.update_one({"name": mat_name}, {"$set": {"stock": new_stock}})
+        deductions[mat_name] = {"used": req_qty, "prev_stock": mat["stock"], "new_stock": new_stock}
+    
+    # Add stock to intermediate good
+    prev_stock = good["stock"]
+    new_stock = prev_stock + data.quantity
+    await db.intermediate_goods.update_one(
+        {"name": data.intermediate_good_name},
+        {"$set": {"stock": new_stock}}
+    )
+    
+    transaction = Transaction(
+        type="manufacture_intermediate_good",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "intermediate_good_name": data.intermediate_good_name,
+            "quantity": data.quantity,
+            "prev_stock": prev_stock,
+            "new_stock": new_stock,
+            "deductions": deductions
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {
+        "message": f"Manufactured {data.quantity} {good['unit']} of {data.intermediate_good_name}",
+        "new_stock": new_stock,
+        "raw_materials_used": deductions
+    }
+
+
+@api_router.post("/manager/add-intermediate-stock")
+async def add_intermediate_stock(data: ManufactureIntermediateRequest, current_user: User = Depends(get_current_user)):
+    """Allow manager to add intermediate good stock directly (for corrections)"""
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can add stock")
+    
+    good = await db.intermediate_goods.find_one({"name": data.intermediate_good_name})
+    if not good:
+        raise HTTPException(status_code=404, detail=f"Intermediate good '{data.intermediate_good_name}' not found")
+    
+    prev_stock = good["stock"]
+    new_stock = prev_stock + data.quantity
+    await db.intermediate_goods.update_one(
+        {"name": data.intermediate_good_name},
+        {"$set": {"stock": new_stock}}
+    )
+    
+    transaction = Transaction(
+        type="add_intermediate_stock",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={"intermediate_good_name": data.intermediate_good_name, "quantity": data.quantity, "prev_stock": prev_stock}
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Added {data.quantity} to {data.intermediate_good_name}", "new_stock": new_stock}
+
+
+
 async def set_recipe(data: SetRecipeRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "owner":
         raise HTTPException(status_code=403, detail="Only owner can set recipes")

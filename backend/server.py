@@ -1062,13 +1062,39 @@ async def manufacture_intermediate_good(data: ManufactureIntermediateRequest, cu
         await db.raw_materials.update_one({"name": mat_name}, {"$set": {"stock": new_stock}})
         deductions[mat_name] = {"used": req_qty, "prev_stock": mat["stock"], "new_stock": new_stock}
     
-    # Add stock to intermediate good
-    prev_stock = good["stock"]
-    new_stock = prev_stock + data.quantity
+    # Add stock to the corresponding raw material (so it can be used in loose oil recipes)
+    # Intermediate goods manufactured stock goes INTO raw_materials for recipe compatibility
+    raw_mat = await db.intermediate_goods.find_one({"name": data.intermediate_good_name})
+    prev_ig_stock = raw_mat["stock"] if raw_mat else 0
+    
+    # Update intermediate good stock (for tracking)
     await db.intermediate_goods.update_one(
         {"name": data.intermediate_good_name},
-        {"$set": {"stock": new_stock}}
+        {"$set": {"stock": prev_ig_stock + data.quantity}}
     )
+    
+    # Also update raw material stock (so it's available in loose oil recipes)
+    raw_material = await db.raw_materials.find_one({"name": data.intermediate_good_name})
+    prev_raw_stock = 0
+    if raw_material:
+        prev_raw_stock = raw_material["stock"]
+        await db.raw_materials.update_one(
+            {"name": data.intermediate_good_name},
+            {"$set": {"stock": prev_raw_stock + data.quantity}}
+        )
+    else:
+        # Create a raw material entry so recipes can use it
+        from uuid import uuid4 as uuid4_raw
+        new_raw = {
+            "id": str(uuid4_raw()),
+            "name": data.intermediate_good_name,
+            "unit": good["unit"],
+            "stock": data.quantity,
+            "created_at": datetime.utcnow(),
+            "created_by": current_user.id
+        }
+        await db.raw_materials.insert_one(new_raw)
+        prev_raw_stock = 0
     
     transaction = Transaction(
         type="manufacture_intermediate_good",

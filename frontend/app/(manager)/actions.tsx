@@ -98,6 +98,9 @@ export default function ManagerActionsScreen() {
       setSelectedItem(packingMaterials[0]?.name || '');
     } else if (action === 'manufacture_intermediate') {
       setSelectedItem(intermediateGoods[0]?.name || '');
+    } else if (action === 'add_cartons') {
+      const first = finishedProducts[0];
+      setSelectedItem(first ? `${first.name}|${first.pack_size}` : '');
     }
     
     setModalVisible(true);

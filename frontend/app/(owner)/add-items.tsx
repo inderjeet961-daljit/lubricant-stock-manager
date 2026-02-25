@@ -256,6 +256,17 @@ export default function AddItemsScreen() {
           editingItem.name,
           editName !== editingItem.name ? editName : undefined
         );
+      } else if (listType === 'finished') {
+        await editFinishedProduct(
+          editingItem.name,
+          editingItem.pack_size,
+          {
+            new_name: editName !== editingItem.name ? editName : undefined,
+            new_pack_size: editPackSize !== editingItem.pack_size ? editPackSize : undefined,
+            new_linked_loose_oil: editLinkedLooseOil !== editingItem.linked_loose_oil ? editLinkedLooseOil : undefined,
+            new_linked_packing_material: editLinkedPackingMaterial !== editingItem.linked_packing_material ? editLinkedPackingMaterial : undefined,
+          }
+        );
       }
       showAlert('Success', 'Item updated successfully');
       closeEditModal();

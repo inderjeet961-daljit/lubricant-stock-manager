@@ -86,12 +86,25 @@ export default function AddItemsScreen() {
   const [editName, setEditName] = useState('');
   const [editUnit, setEditUnit] = useState('litres');
   const [editSizeLabel, setEditSizeLabel] = useState('');
+  const [editPackSize, setEditPackSize] = useState('');
+  const [editLinkedLooseOil, setEditLinkedLooseOil] = useState('');
+  const [editLinkedPackingMaterial, setEditLinkedPackingMaterial] = useState('');
   
   // Data
   const [looseOils, setLooseOils] = useState([]);
   const [packingMaterials, setPackingMaterials] = useState([]);
   const [rawMaterials, setRawMaterials] = useState([]);
   const [finishedProducts, setFinishedProducts] = useState([]);
+  const [intermediateGoods, setIntermediateGoods] = useState([]);
+  const [intermediateRecipes, setIntermediateRecipes] = useState([]);
+  
+  // Intermediate goods form
+  const [igModalVisible, setIgModalVisible] = useState(false);
+  const [igName, setIgName] = useState('');
+  const [igUnit, setIgUnit] = useState('litres');
+  const [igRecipeModalVisible, setIgRecipeModalVisible] = useState(false);
+  const [selectedIG, setSelectedIG] = useState(null);
+  const [igIngredients, setIgIngredients] = useState<{raw_material_name: string; quantity_per_unit: number}[]>([]);
 
   useEffect(() => {
     loadData();

@@ -1103,8 +1103,8 @@ async def manufacture_intermediate_good(data: ManufactureIntermediateRequest, cu
         data={
             "intermediate_good_name": data.intermediate_good_name,
             "quantity": data.quantity,
-            "prev_stock": prev_stock,
-            "new_stock": new_stock,
+            "prev_stock": prev_raw_stock,
+            "new_stock": prev_raw_stock + data.quantity,
             "deductions": deductions
         }
     )
@@ -1112,7 +1112,7 @@ async def manufacture_intermediate_good(data: ManufactureIntermediateRequest, cu
     
     return {
         "message": f"Manufactured {data.quantity} {good['unit']} of {data.intermediate_good_name}",
-        "new_stock": new_stock,
+        "new_stock": prev_raw_stock + data.quantity,
         "raw_materials_used": deductions
     }
 

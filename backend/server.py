@@ -1583,12 +1583,17 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
             {"$set": {"stock": new_packing_stock}}
         )
         
-        # Add to finished goods factory stock
+        # Add to finished goods factory stock and carton stock
         current_factory_stock = product.get("factory_stock", 0)
+        current_carton_stock = product.get("carton_stock", 0)
         new_factory_stock = current_factory_stock + data.quantity
+        new_carton_stock = current_carton_stock + data.cartons
+        update_fields = {"factory_stock": new_factory_stock}
+        if data.cartons > 0:
+            update_fields["carton_stock"] = new_carton_stock
         await db.finished_products.update_one(
             {"name": data.product_name, "pack_size": data.pack_size},
-            {"$set": {"factory_stock": new_factory_stock}}
+            {"$set": update_fields}
         )
         
         # Log transaction
@@ -1601,24 +1606,28 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
                 "pack_size": product["pack_size"],
                 "pack_size_litres": pack_size_litres,
                 "quantity_packed": data.quantity,
+                "cartons_packed": data.cartons,
                 "oil_used_litres": required_oil,
                 "packing_used": data.quantity,
                 "linked_loose_oil": product["linked_loose_oil"],
                 "linked_packing": product["linked_packing_material"],
                 "prev_factory_stock": current_factory_stock,
+                "prev_carton_stock": current_carton_stock,
                 "prev_oil_stock": current_oil_stock,
                 "prev_packing_stock": current_packing_stock
             }
         )
         await db.transactions.insert_one(transaction.dict())
         
-        logger.info(f"Packed {data.quantity} units of {data.product_name} ({pack_size_litres}L each = {required_oil}L total)")
+        logger.info(f"Packed {data.quantity} units ({data.cartons} cartons) of {data.product_name} ({pack_size_litres}L each = {required_oil}L total)")
         return {
-            "message": f"Successfully packed {data.quantity} units of {data.product_name}",
+            "message": f"Successfully packed {data.quantity} units of {data.product_name}" + (f" ({data.cartons} cartons)" if data.cartons > 0 else ""),
             "details": {
                 "oil_used": f"{required_oil:.2f}L ({pack_size_litres}L x {data.quantity})",
                 "packing_used": data.quantity,
-                "new_factory_stock": new_factory_stock
+                "cartons_packed": data.cartons,
+                "new_factory_stock": new_factory_stock,
+                "new_carton_stock": new_carton_stock
             }
         }
     except HTTPException:

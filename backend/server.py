@@ -1636,6 +1636,46 @@ async def pack_finished_goods(data: PackFinishedGoodsRequest, current_user: User
         logger.error(f"Error packing finished goods: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to pack finished goods: {str(e)}")
 
+
+class AddCartonsRequest(BaseModel):
+    product_name: str
+    pack_size: str
+    cartons: int
+
+
+@api_router.post("/manager/add-cartons")
+async def add_cartons(data: AddCartonsRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only manager can add cartons")
+    
+    product = await db.finished_products.find_one({"name": data.product_name, "pack_size": data.pack_size})
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Product '{data.product_name}' ({data.pack_size}) not found")
+    
+    prev_carton_stock = product.get("carton_stock", 0)
+    new_carton_stock = prev_carton_stock + data.cartons
+    await db.finished_products.update_one(
+        {"name": data.product_name, "pack_size": data.pack_size},
+        {"$set": {"carton_stock": new_carton_stock}}
+    )
+    
+    transaction = Transaction(
+        type="add_cartons",
+        user_id=current_user.id,
+        user_name=current_user.name,
+        data={
+            "product_name": data.product_name,
+            "pack_size": data.pack_size,
+            "cartons_added": data.cartons,
+            "prev_carton_stock": prev_carton_stock,
+            "new_carton_stock": new_carton_stock
+        }
+    )
+    await db.transactions.insert_one(transaction.dict())
+    
+    return {"message": f"Added {data.cartons} cartons of {data.product_name} ({data.pack_size})", "new_carton_stock": new_carton_stock}
+
+
 @api_router.post("/manager/approve-return")
 async def approve_return(data: ApproveReturnRequest, current_user: User = Depends(get_current_user)):
     if current_user.role != "manager":

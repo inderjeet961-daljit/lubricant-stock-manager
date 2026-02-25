@@ -2247,6 +2247,7 @@ def get_transaction_label(txn_type: str) -> str:
         "approve_return_scrap": "Approved Return (Scrap)",
         "mark_damaged_packing": "Marked Damaged Packing",
         "edit_stock": "Manual Stock Edit",
+        "add_cartons": "Added Cartons",
         "edit_finished_product": "Edited Finished Product",
         "add_intermediate_good": "Added Intermediate Good",
         "delete_intermediate_good": "Deleted Intermediate Good",
